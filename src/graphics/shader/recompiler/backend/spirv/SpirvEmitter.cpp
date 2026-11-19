@@ -965,6 +965,40 @@ std::vector<uint32_t> EmitProgram(const IR::Program& program,
 		                                       state.bda_pointer_function};
 		OutlineHugeModuleHelpers(words, helpers);
 	}
+	if (program.stage == ShaderType::Mesh) {
+		// Record the effective subgroup probe setting and inspect the final module, after all
+		// optional module rewrites, so the counts and hash describe the exact emitted SPIR-V.
+		const char* const broadcast_env = std::getenv("KYTY_AMD_MESH_SHUFFLE_BROADCAST");
+		const bool broadcast_enabled = broadcast_env != nullptr && broadcast_env[0] == '1' &&
+		                               broadcast_env[1] == '\\0';
+		uint32_t shuffle_count = 0;
+		uint32_t broadcast_count = 0;
+		uint64_t module_hash = 14695981039346656037ull;
+		for (const uint32_t word: words) {
+			module_hash ^= word;
+			module_hash *= 1099511628211ull;
+		}
+		for (size_t offset = 5; offset < words.size();) {
+			const uint32_t instruction = words[offset];
+			const uint32_t word_count = instruction >> 16u;
+			const uint32_t opcode = instruction & 0xffffu;
+			if (word_count == 0u || offset + word_count > words.size()) {
+				break;
+			}
+			shuffle_count += opcode == static_cast<uint32_t>(spv::OpGroupNonUniformShuffle);
+			broadcast_count += opcode == static_cast<uint32_t>(spv::OpGroupNonUniformBroadcast);
+			offset += word_count;
+		}
+		char diagnostic[512] {};
+		std::snprintf(diagnostic, sizeof(diagnostic),
+		              "KYTY_MESH_SHUFFLE_EMIT stage=%u guest_hash=0x%016" PRIx64
+		              " env=%s enabled=%u shuffle=%u broadcast=%u words=%zu fnv1a64=0x%016" PRIx64,
+		              static_cast<unsigned>(program.stage), program.shader_hash,
+		              broadcast_env == nullptr ? "<unset>" : broadcast_env,
+		              broadcast_enabled ? 1u : 0u, shuffle_count, broadcast_count, words.size(),
+		              module_hash);
+		Log::WriteMeshDiagnostic(diagnostic);
+	}
 	return words;
 }
 
