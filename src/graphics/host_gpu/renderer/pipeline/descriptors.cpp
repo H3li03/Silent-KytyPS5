@@ -2002,6 +2002,19 @@ void RenderExecutor::ResolveTextureFull(const ShaderRecompiler::IR::ImageResourc
 		binding.image_id = texture_cache.FindImage(desc);
 		return;
 	}
+	if (storage && image->backing.format == vk::Format::eD32SfloatS8Uint && !copy_binding) {
+		static std::atomic<uint32_t> unshadowed {0};
+		if (unshadowed.fetch_add(1, std::memory_order_relaxed) < 16) {
+			LOGF("KYTY_STENCIL_STORAGE_UNSHADOWED: source=0x%012" PRIx64
+			     " resolved=0x%012" PRIx64 " association=%u info_depth=%u view_format=%d "
+			     "view_aspect=0x%x extent=%ux%u samples=%u layers=%u\\n",
+			     texture_cache.GetImage(found).info.data.address, image->info.data.address,
+			     stencil_association ? 1u : 0u, image->info.IsDepth() ? 1u : 0u,
+			     static_cast<int>(desc.view_info.format), static_cast<uint32_t>(desc.view_info.aspect),
+			     image->backing.extent.width, image->backing.extent.height, image->backing.samples,
+			     image->backing.layers);
+		}
+	}
 	binding.image_id = id;
 	if (copy_binding) {
 		// Not memoized: each resolution refreshes the copy from its source.
