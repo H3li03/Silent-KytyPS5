@@ -535,8 +535,16 @@ public:
 	void Add(vk::ShaderModule module, std::span<const uint32_t> spirv) {
 		const auto hash = XXH3_64bits(spirv.data(), spirv.size_bytes());
 		std::scoped_lock lock(m_mutex);
-		m_modules[static_cast<VkShaderModule>(module)] = {.hash = hash, .words = spirv.size()};
-		m_by_hash.try_emplace(hash, static_cast<VkShaderModule>(module));
+		const auto handle = static_cast<VkShaderModule>(module);
+		m_modules[handle] = {.hash = hash, .words = spirv.size()};
+		const auto [indexed, inserted] = m_by_hash.try_emplace(hash, handle);
+		if (!inserted) {
+			const auto live = m_modules.find(indexed->second);
+			if (live == m_modules.end() || live->second.doomed) {
+				// A stale hash index must not hide the newly added live module.
+				indexed->second = handle;
+			}
+		}
 	}
 	// The module was published for the permutation `identity` with these descriptor bindings.
 	void SetIdentity(vk::ShaderModule module, uint64_t identity, uint64_t bindings) {
