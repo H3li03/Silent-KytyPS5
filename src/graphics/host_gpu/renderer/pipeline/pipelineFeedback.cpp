@@ -77,9 +77,15 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	// driver to skip its optimization pass. This is opt-in and deliberately excluded from
 	// cache-only probes, where eFailOnPipelineCompileRequired must retain its original meaning.
 	const auto* disable_optimization_env = std::getenv("KYTY_PIPELINE_DISABLE_OPTIMIZATION");
-	const bool  disable_optimization =
-	    path != Path::Probe && disable_optimization_env != nullptr && *disable_optimization_env != '\0' &&
+	const auto* amd_safe_env               = std::getenv("KYTY_AMD_SAFE_PIPELINES");
+	const bool  amd_safe_mode =
+	    amd_safe_env != nullptr && *amd_safe_env != '\0' && std::strcmp(amd_safe_env, "0") != 0;
+	const bool disable_optimization_env_enabled =
+	    disable_optimization_env != nullptr && *disable_optimization_env != '\0' &&
 	    std::strcmp(disable_optimization_env, "0") != 0;
+	// The AMD safe profile combines the proven unoptimized-pipeline workaround with the
+	// scalarized tiler shader and monolithic pipeline path. Keep cache-only probes untouched.
+	const bool disable_optimization = path != Path::Probe && (amd_safe_mode || disable_optimization_env_enabled);
 	vk::GraphicsPipelineCreateInfo unoptimized_info;
 	if (disable_optimization) {
 		unoptimized_info       = plain_info;
