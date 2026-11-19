@@ -1865,6 +1865,25 @@ void RenderExecutor::ResolveTextureFull(const ShaderRecompiler::IR::ImageResourc
 				copy_binding          = true;
 				desc.view_info.format = vk::Format::eR8Uint;
 				desc.view_info.aspect = vk::ImageAspectFlagBits::eColor;
+			} else {
+				// Never create a Vulkan storage view of D32S8: some depth/stencil images do not
+				// qualify for the R8 stencil shadow (for example multisampled, layered or compressed
+				// stencil images). Match the safe fallback used by the Yotei fork: bind a null storage
+				// image rather than passing an unsupported D32S8 view to the driver.
+				static std::atomic<uint32_t> rejected {0};
+				if (rejected.fetch_add(1, std::memory_order_relaxed) < 16) {
+					LOGF("KYTY_STENCIL_STORAGE_SHADOW_REJECTED: plane=0x%012" PRIx64
+					     " depth=0x%012" PRIx64 " extent=%ux%u samples=%u/%u layers=%u/%u "
+					     "compressed=%u type=%u; binding null storage image\n",
+					     texture_cache.GetImage(record_id).info.data.address, image->info.data.address,
+					     image->backing.extent.width, image->backing.extent.height,
+					     image->info.samples, image->backing.samples, image->info.resources.layers,
+					     image->backing.layers, image->info.metadata.stencil_compressed ? 1u : 0u,
+					     static_cast<uint32_t>(image->info.type));
+				}
+				desc              = NullTextureDesc(resource, TextureCache::BindingType::Storage);
+				binding.image_id  = texture_cache.FindImage(desc);
+				return;
 			}
 		}
 		if (storage && !copy_binding) {
