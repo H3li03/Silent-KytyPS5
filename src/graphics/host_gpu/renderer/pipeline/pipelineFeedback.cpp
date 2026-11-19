@@ -144,12 +144,10 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 		const auto* serialize_mesh_env = std::getenv("KYTY_MESH_PIPELINE_SERIALIZE");
 	const bool serialize_mesh_requested = serialize_mesh_env != nullptr && *serialize_mesh_env != '\0' &&
 	                                      std::strcmp(serialize_mesh_env, "0") != 0;
-	// Mesh-only and Mesh+Fragment pipelines share the AMD mesh compiler.
-	// AMD's Windows Vulkan driver has crashed while compiling two Mesh-only pipelines
-	// concurrently. Serialize every Mesh pipeline creation by default; this only affects
-	// pipeline-build latency, not draw execution. The environment switch remains useful
-	// for serializing non-Mesh graphics pipelines as well.
-	const bool serialize_mesh_pipeline = mesh_pipeline || (mesh_pipeline && serialize_mesh_requested);
+	// Mesh-only and Mesh+Fragment pipelines share the AMD mesh compiler. Serialize every
+	// Mesh pipeline creation by default: concurrent AMD driver compilation has crashed.
+	// This affects pipeline-build latency only, not draw execution.
+	const bool serialize_mesh_pipeline = mesh_pipeline;
 	// A Mesh serialization request enables the same mutex for every graphics-pipeline
 	// driver call, including non-Mesh pipelines, to isolate the AMD driver globally.
 	const auto* serialize_all_env = std::getenv("KYTY_GRAPHICS_PIPELINE_SERIALIZE");
