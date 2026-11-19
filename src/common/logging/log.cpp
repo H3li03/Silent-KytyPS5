@@ -19,6 +19,7 @@ static bool g_console     = false;
 // Null when silent. Only Initialize sets it, before other threads start. Never destroyed, since
 // threads keep logging while exit runs static destructors.
 static spdlog::logger* g_logger = nullptr;
+static spdlog::logger* g_mesh_logger = nullptr;
 
 static void WriteStdout(std::string_view text, fmt::text_style style) {
 	if (style == fmt::text_style {}) {
@@ -52,11 +53,40 @@ void Initialize() {
 		    "%v", spdlog::pattern_time_type::local, ""));
 		g_logger = new spdlog::logger("kyty", std::move(sink));
 	}
+
+	// Keep the Mesh investigation trace separate from the regular emulator log. Put it beside
+	// the configured printf log when available, otherwise in the process working directory.
+	delete g_mesh_logger;
+	g_mesh_logger = nullptr;
+	try {
+		const auto mesh_path = path.empty() ? std::filesystem::path("kyty-mesh-investigation.txt")
+		                                    : path.parent_path() / "kyty-mesh-investigation.txt";
+		if (mesh_path.has_parent_path()) {
+			std::filesystem::create_directories(mesh_path.parent_path());
+		}
+		const bool truncate = std::getenv(RelaunchedVariable) == nullptr;
+		auto mesh_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(mesh_path.native(), truncate);
+		mesh_sink->set_formatter(std::make_unique<spdlog::pattern_formatter>(
+		    "%v", spdlog::pattern_time_type::local, ""));
+		g_mesh_logger = new spdlog::logger("kyty-mesh-investigation", std::move(mesh_sink));
+		const auto* layer = std::getenv("KYTY_MESH_LAYER");
+		const auto* fast_first = std::getenv("KYTY_PIPELINE_FAST_FIRST");
+		WriteMeshDiagnostic(fmt::sprintf(
+		    "KYTY_MESH_DIAG_SESSION start layer=%s pipeline_fast_first=%s file=%s\n",
+		    layer != nullptr ? layer : "(unset)", fast_first != nullptr ? fast_first : "(unset)",
+		    mesh_path.generic_string()));
+	} catch (...) {
+		// Diagnostic logging must never prevent the emulator from starting.
+		g_mesh_logger = nullptr;
+	}
 }
 
 void Flush() {
 	if (g_logger != nullptr) {
 		g_logger->flush();
+	}
+	if (g_mesh_logger != nullptr) {
+		g_mesh_logger->flush();
 	}
 }
 
@@ -88,6 +118,15 @@ void WriteToConsoleAndLog(std::string_view text) {
 	}
 	Write({}, text);
 	Flush();
+}
+
+void WriteMeshDiagnostic(std::string_view text) {
+	if (g_mesh_logger != nullptr) {
+		g_mesh_logger->log(spdlog::level::info, spdlog::string_view_t(text.data(), text.size()));
+		g_mesh_logger->flush();
+	} else {
+		WriteToConsoleAndLog(text);
+	}
 }
 
 } // namespace Log

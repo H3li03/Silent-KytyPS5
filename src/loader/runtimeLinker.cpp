@@ -1097,6 +1097,8 @@ static bool KytyExceptionHandler(const Common::HostException::ExceptionInfo& exc
 			}
 		}
 #endif
+		Log::WriteMeshDiagnostic("KYTY_MESH_DIAG_CRASH_BEGIN\n");
+		Log::WriteMeshDiagnostic(report);
 		Log::WriteToConsoleAndLog(report);
 		std::fflush(stdout);
 	}

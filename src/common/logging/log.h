@@ -31,6 +31,8 @@ inline void Write(std::string_view text) {
 }
 // Also shown on the console when the log goes to a file or nowhere.
 void WriteToConsoleAndLog(std::string_view text);
+// Writes and flushes the dedicated mesh-rendering investigation log.
+void WriteMeshDiagnostic(std::string_view text);
 
 namespace Color {
 

@@ -6,6 +6,7 @@
 //   and one method per native command named as in vk::CommandBuffer (beginRendering, draw, ...).
 // Every array argument points into the packet (or into ReplayState scratch) and is valid only
 // during the call.
+#include "common/logging/log.h"
 
 namespace Libs::Graphics::CommandStream {
 
@@ -120,10 +121,9 @@ inline void CheckResolvedDraw(ReplayState& state, const ResolvedDrawPacket& p, c
 	}
 	if (any && stats.reported < 16) {
 		stats.reported++;
-		std::printf("EmitSplit verify: resolved draw differs from the encoded draw:%s%s%s%s%s%s%s%s\n",
+		Log::WriteMeshDiagnostic(fmt::sprintf("EmitSplit verify: resolved draw differs from the encoded draw:%s%s%s%s%s%s%s%s\n",
 		            bad[0] ? " pipeline" : "", bad[1] ? " vertex" : "", bad[2] ? " index" : "", bad[3] ? " layout" : "",
-		            bad[4] ? " writes" : "", bad[5] ? " infos" : "", bad[6] ? " constants" : "", bad[7] ? " draw" : "");
-		std::fflush(stdout);
+		            bad[4] ? " writes" : "", bad[5] ? " infos" : "", bad[6] ? " constants" : "", bad[7] ? " draw" : ""));
 	}
 }
 
@@ -600,9 +600,8 @@ void Replay(const Header& header, Exec& exec, ReplayState& state, MismatchHandle
 			static std::atomic_uint32_t diag_count {0};
 			const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);
 			if (diag_id < 32) {
-				std::printf("KYTY_DRAW_REPLAY direct=%u vertices=%u instances=%u\n", diag_id,
-				            p.vertex_count, p.instance_count);
-				std::fflush(stdout);
+				Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_DRAW_REPLAY direct=%u vertices=%u instances=%u\n", diag_id,
+				            p.vertex_count, p.instance_count));
 			}
 			if (verify != nullptr) check(VerifyHash::Value(op, p.vertex_count, p.instance_count, p.first_vertex,
 			                        p.first_instance));
@@ -620,9 +619,8 @@ void Replay(const Header& header, Exec& exec, ReplayState& state, MismatchHandle
 			static std::atomic_uint32_t diag_count {0};
 			const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);
 			if (diag_id < 32) {
-				std::printf("KYTY_DRAW_REPLAY indexed=%u indices=%u instances=%u\n", diag_id,
-				            p.index_count, p.instance_count);
-				std::fflush(stdout);
+				Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_DRAW_REPLAY indexed=%u indices=%u instances=%u\n", diag_id,
+				            p.index_count, p.instance_count));
 			}
 			if (verify != nullptr) check(VerifyHash::Value(op, p.index_count, p.instance_count, p.first_index,
 			                        static_cast<uint32_t>(p.vertex_offset), p.first_instance));
@@ -643,8 +641,7 @@ void Replay(const Header& header, Exec& exec, ReplayState& state, MismatchHandle
 			static std::atomic_uint32_t diag_count {0};
 			const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);
 			if (diag_id < 32) {
-				std::printf("KYTY_MESH_REPLAY direct=%u groups=(%u,%u,%u)\n", diag_id, p.x, p.y, p.z);
-				std::fflush(stdout);
+				Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_MESH_REPLAY direct=%u groups=(%u,%u,%u)\n", diag_id, p.x, p.y, p.z));
 			}
 			if (verify != nullptr) check(VerifyHash::Value(op, p.x, p.y, p.z));
 			exec.drawMeshTasksEXT(p.x, p.y, p.z);
@@ -658,9 +655,8 @@ void Replay(const Header& header, Exec& exec, ReplayState& state, MismatchHandle
 				static std::atomic_uint32_t diag_count {0};
 				const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);
 				if (diag_id < 32) {
-					std::printf("KYTY_MESH_REPLAY indirect=%u draws=%u stride=%u offset=%llu\n", diag_id,
-					            p.draw_count, p.stride, static_cast<unsigned long long>(p.offset));
-					std::fflush(stdout);
+					Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_MESH_REPLAY indirect=%u draws=%u stride=%u offset=%llu\n", diag_id,
+					            p.draw_count, p.stride, static_cast<unsigned long long>(p.offset)));
 				}
 			}
 			uint64_t    buffer_bits = 0;
@@ -684,9 +680,8 @@ void Replay(const Header& header, Exec& exec, ReplayState& state, MismatchHandle
 				static std::atomic_uint32_t diag_count {0};
 				const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);
 				if (diag_id < 32) {
-					std::printf("KYTY_MESH_REPLAY indirect_count=%u max=%u stride=%u offset=%llu\n", diag_id,
-					            p.max_count, p.stride, static_cast<unsigned long long>(p.offset));
-					std::fflush(stdout);
+					Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_MESH_REPLAY indirect_count=%u max=%u stride=%u offset=%llu\n", diag_id,
+					            p.max_count, p.stride, static_cast<unsigned long long>(p.offset)));
 				}
 			}
 			uint64_t    buffer_bits = 0;
@@ -819,9 +814,8 @@ void Replay(const Header& header, Exec& exec, ReplayState& state, MismatchHandle
 			static std::atomic_uint32_t diag_count {0};
 			const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);
 			if (diag_id < 32) {
-				std::printf("KYTY_DRAW_REPLAY resolved=%u flags=0x%x count=%u instances=%u\n", diag_id,
-				            p.flags, p.count, p.instance_count);
-				std::fflush(stdout);
+				Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_DRAW_REPLAY resolved=%u flags=0x%x count=%u instances=%u\n", diag_id,
+				            p.flags, p.count, p.instance_count));
 			}
 			const auto* copies = reader.GetArray<HostCopyPacket>(p.copy_count);
 			const auto* vb     = reader.GetArray<vk::Buffer>(p.vertex_count);

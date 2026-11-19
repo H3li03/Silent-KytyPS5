@@ -4,6 +4,7 @@
 #include "common/abi.h"
 #include "common/assert.h"
 #include "common/common.h"
+#include "common/logging/log.h"
 #include "graphics/guest_gpu/hardwareContext.h"
 #include "graphics/host_gpu/queueSubmission.h"
 #include "graphics/host_gpu/renderer/commandStream.h"
@@ -1042,8 +1043,7 @@ public:
 		static std::atomic_uint32_t diag_count {0};
 		const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);
 		if (diag_id < 64) {
-			std::printf("KYTY_MESH_DRAW direct=%u groups=(%u,%u,%u)\n", diag_id, x, y, z);
-			std::fflush(stdout);
+			Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_MESH_DRAW direct=%u groups=(%u,%u,%u)\n", diag_id, x, y, z));
 		}
 
 		if (m_owner->Encoding()) {
@@ -1057,8 +1057,7 @@ public:
 		static std::atomic_uint32_t diag_count {0};
 		const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);
 		if (diag_id < 64) {
-			std::printf("KYTY_MESH_DRAW indirect=%u draw_count=%u stride=%u offset=%llu\n", diag_id, draw_count, stride, static_cast<unsigned long long>(offset));
-			std::fflush(stdout);
+			Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_MESH_DRAW indirect=%u draw_count=%u stride=%u offset=%llu\n", diag_id, draw_count, stride, static_cast<unsigned long long>(offset)));
 		}
 
 		if (m_owner->Encoding()) {
@@ -1073,8 +1072,7 @@ public:
 		static std::atomic_uint32_t diag_count {0};
 		const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);
 		if (diag_id < 64) {
-			std::printf("KYTY_MESH_DRAW indirect_count=%u max_count=%u stride=%u offset=%llu count_offset=%llu\n", diag_id, max_count, stride, static_cast<unsigned long long>(offset), static_cast<unsigned long long>(count_offset));
-			std::fflush(stdout);
+			Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_MESH_DRAW indirect_count=%u max_count=%u stride=%u offset=%llu count_offset=%llu\n", diag_id, max_count, stride, static_cast<unsigned long long>(offset), static_cast<unsigned long long>(count_offset)));
 		}
 
 		if (m_owner->Encoding()) {
