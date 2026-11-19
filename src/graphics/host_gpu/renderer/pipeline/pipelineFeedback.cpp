@@ -150,10 +150,10 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 				empty_fragment_info = driver_info;
 				empty_fragment_info.pStages = empty_fragment_stages.data();
 				selected_driver_info = &empty_fragment_info;
-				Log::WriteMeshDiagnostic("KYTY_MESH_DIAG_EMPTY_FRAGMENT_TEST active=1\\n");
+				Log::WriteMeshDiagnostic("KYTY_MESH_DIAG_EMPTY_FRAGMENT_TEST active=1\n");
 			}
 		} else {
-			Log::WriteMeshDiagnostic("KYTY_MESH_DIAG_EMPTY_FRAGMENT_TEST active=0 module_unavailable=1\\n");
+			Log::WriteMeshDiagnostic("KYTY_MESH_DIAG_EMPTY_FRAGMENT_TEST active=0 module_unavailable=1\n");
 		}
 	}
 	// Trace the exact graphics-pipeline call that reaches the AMD Vulkan driver.
