@@ -118,8 +118,8 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	    disable_optimization_env != nullptr && *disable_optimization_env != '\0' &&
 	    std::strcmp(disable_optimization_env, "0") != 0;
 	// Classify from the caller's original stages: KYTY_EMPTY_FS may already have
-	// appended a synthetic fragment stage to plain_info, which must not hide a Mesh-only
-	// pipeline from Mesh-specific workarounds or diagnostics.
+	// appended a synthetic fragment stage to plain_info, which must not misclassify a
+	// Mesh-only pipeline as Mesh+Fragment for Mesh-specific diagnostics and tests.
 	const bool mesh_pipeline = IsMeshPipeline(original);
 	const bool mesh_fragment_pipeline = mesh_pipeline && IsMeshFragmentPipeline(original);
 	const bool mesh_pipeline_noopt = mesh_pipeline && MeshPipelineNoOptimizationEnabled();
