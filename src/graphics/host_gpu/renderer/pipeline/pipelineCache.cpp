@@ -3524,6 +3524,21 @@ struct PipelineCache::ProgramCache {
 		const auto try_flags = SpirvTryFlags(options.shader_hash);
 		auto       tried     = ApplySpirvTry(emitted.spirv, try_flags, options.shader_hash);
 		const auto& driver_spirv = tried.empty() ? emitted.spirv : tried;
+		// Targeted AMD mesh forensics: preserve the exact SPIR-V words sent to the driver
+		// for the mesh program identified in the crash logs, regardless of graphics-dump settings.
+		if (options.stage == ShaderType::Mesh && options.shader_hash == 0x4e991d9d461f621dull) {
+			const auto dump_path = Config::GetShaderLogFolder() / "amd-mesh-target-4e991d9d461f621d.spv";
+			Common::File::CreateDirectories(dump_path.parent_path());
+			Common::File dump_file(dump_path);
+			if (!dump_file.IsInvalid()) {
+				dump_file.Write(driver_spirv.data(), driver_spirv.size() * sizeof(uint32_t));
+				Log::WriteMeshDiagnostic(fmt::sprintf(
+				    "KYTY_MESH_DIAG_TARGET_SPIRV_DUMP path=%s words=%zu\n",
+				    Common::PathToString(dump_path).c_str(), driver_spirv.size()));
+			} else {
+				Log::WriteMeshDiagnostic("KYTY_MESH_DIAG_TARGET_SPIRV_DUMP failed-to-open\n");
+			}
+		}
 		{
 			KYTY_PROFILER_BLOCK("Shader::CreateModule");
 			module = CompileSPV(driver_spirv, device);
