@@ -690,7 +690,7 @@ void CreatePipelineInternal(GraphicContext& graphics, PipelineCache::Pipeline& p
 			Log::WriteMeshDiagnostic(fmt::sprintf(
 			    "KYTY_MESH_DIAG_MESH_PROGRAM vertex_program_id=0x%016llx pixel_program_id=0x%016llx "
 			    "vertex_module_null=%u pixel_module_null=%u vertex_wave=%u layer_limit=%u "
-			    "pixel_active=%u pipeline_stages=%u\\n",
+			    "pixel_active=%u pipeline_stages=%u\n",
 			    static_cast<unsigned long long>(programs.vertex[0].id),
 			    static_cast<unsigned long long>(programs.pixel.id),
 			    programs.vertex[0].module == nullptr ? 1u : 0u,
