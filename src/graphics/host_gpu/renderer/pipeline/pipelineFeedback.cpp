@@ -123,15 +123,6 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	const bool mesh_pipeline = IsMeshPipeline(original);
 	const bool mesh_fragment_pipeline = mesh_pipeline && IsMeshFragmentPipeline(original);
 	const bool mesh_pipeline_noopt = mesh_pipeline && MeshPipelineNoOptimizationEnabled();
-	Log::WriteMeshDiagnostic(fmt::sprintf(
-	    "KYTY_MESH_DIAG_PIPELINE_CLASSIFY mesh=%u original_stages=%u driver_stages=%u "
-	    "original_fragment=%u mesh_noopt=%u add_empty_requested=%u\n",
-	    mesh_pipeline ? 1u : 0u, original.stageCount, plain_info.stageCount,
-	    mesh_fragment_pipeline ? 1u : 0u, mesh_pipeline_noopt ? 1u : 0u,
-	    add_empty_fragment_env != nullptr && *add_empty_fragment_env != '\0' &&
-	            std::strcmp(add_empty_fragment_env, "0") != 0
-	        ? 1u
-	        : 0u));
 	const auto* empty_fragment_test_env = std::getenv("KYTY_MESH_TEST_EMPTY_FRAGMENT");
 	const bool empty_fragment_test = mesh_fragment_pipeline && empty_fragment_test_env != nullptr &&
 	                                 *empty_fragment_test_env != '\0' && std::strcmp(empty_fragment_test_env, "0") != 0;
@@ -141,6 +132,15 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	const bool add_empty_fragment_test = mesh_pipeline && !mesh_fragment_pipeline &&
 	                                      add_empty_fragment_env != nullptr && *add_empty_fragment_env != '\0' &&
 	                                      std::strcmp(add_empty_fragment_env, "0") != 0;
+	Log::WriteMeshDiagnostic(fmt::sprintf(
+	    "KYTY_MESH_DIAG_PIPELINE_CLASSIFY mesh=%u original_stages=%u driver_stages=%u "
+	    "original_fragment=%u mesh_noopt=%u add_empty_requested=%u\n",
+	    mesh_pipeline ? 1u : 0u, original.stageCount, plain_info.stageCount,
+	    mesh_fragment_pipeline ? 1u : 0u, mesh_pipeline_noopt ? 1u : 0u,
+	    add_empty_fragment_env != nullptr && *add_empty_fragment_env != '\0' &&
+	            std::strcmp(add_empty_fragment_env, "0") != 0
+	        ? 1u
+	        : 0u));
 		const auto* serialize_mesh_env = std::getenv("KYTY_MESH_PIPELINE_SERIALIZE");
 	const bool serialize_mesh_requested = serialize_mesh_env != nullptr && *serialize_mesh_env != '\0' &&
 	                                      std::strcmp(serialize_mesh_env, "0") != 0;
