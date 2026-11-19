@@ -686,6 +686,18 @@ void CreatePipelineInternal(GraphicContext& graphics, PipelineCache::Pipeline& p
 		}
 		result = (*create_hook)(pipeline_info, layout_signature, &pipeline.pipeline);
 	} else {
+		if (mesh) {
+			Log::WriteMeshDiagnostic(fmt::sprintf(
+			    "KYTY_MESH_DIAG_MESH_PROGRAM vertex_program_id=0x%016llx pixel_program_id=0x%016llx "
+			    "vertex_module_null=%u pixel_module_null=%u vertex_wave=%u layer_limit=%u "
+			    "pixel_active=%u pipeline_stages=%u\\n",
+			    static_cast<unsigned long long>(programs.vertex[0].id),
+			    static_cast<unsigned long long>(programs.pixel.id),
+			    programs.vertex[0].module == nullptr ? 1u : 0u,
+			    programs.pixel.module == nullptr ? 1u : 0u,
+			    vs_input_info.mesh.wave_size, layer_limit_value, ps_active ? 1u : 0u,
+			    shader_stage_count));
+		}
 		result = PipelineFeedback::CreateGraphics(graphics.device, driver_cache, pipeline_info, &pipeline.pipeline,
 		                                          PipelineFeedback::Path::Sync);
 	}
