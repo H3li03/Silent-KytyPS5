@@ -1555,6 +1555,16 @@ uint32_t ValueEmitContext::FirstLane(uint32_t ballot) {
 
 uint32_t ValueEmitContext::Shuffle(const IR::Inst& inst, size_t index, uint32_t lane) {
 	const auto type  = TypeId(state, inst.Arg(index).GetType());
+	// Diagnostic only: replace Mesh-stage subgroup shuffle results with OpUndef to test
+	// whether AMD's Windows Vulkan driver crash is triggered by OpGroupNonUniformShuffle.
+	// This intentionally does not preserve shader results and must not be used as a fix.
+	const char* const disable_shuffle = std::getenv("KYTY_AMD_MESH_SHUFFLE_DISABLE");
+	if (state.program.stage == ShaderType::Mesh && disable_shuffle != nullptr &&
+	    disable_shuffle[0] == '1' && disable_shuffle[1] == '\\0') {
+		const auto undefined = state.builder.AllocateId();
+		state.builder.AddFunction(spv::OpUndef, type, undefined);
+		return undefined;
+	}
 	if (state.split_wave) {
 		// The lane may be in the other host subgroup: exchange through workgroup memory.
 		const auto u32   = TypeU32(state);
