@@ -612,6 +612,19 @@ static QStringList SetupEmulatorProcess(QProcess* process, const QString& interp
 		environment.insert(QStringLiteral("KYTY_PRESENT_ABS_VBLANK"), QStringLiteral("1"));
 		process->setProcessEnvironment(environment);
 	}
+	// Temporary AMD mesh isolation run: force the diagnostic mask in the child process.
+	// This intentionally replaces the first Mesh-stage Shuffle result with OpUndef.
+	{
+		auto environment = process->processEnvironment();
+		environment.insert(QStringLiteral("KYTY_AMD_MESH_SHUFFLE_MASK"), QStringLiteral("0x1"));
+		environment.insert(QStringLiteral("KYTY_MESH_LAYER"), QStringLiteral("keep"));
+		environment.insert(QStringLiteral("KYTY_PIPELINE_FAST_FIRST"), QStringLiteral("0"));
+		process->setProcessEnvironment(environment);
+		qInfo().noquote() << "AMD mesh diagnostic environment:"
+		                  << "KYTY_AMD_MESH_SHUFFLE_MASK=" << environment.value(QStringLiteral("KYTY_AMD_MESH_SHUFFLE_MASK"))
+		                  << "KYTY_MESH_LAYER=" << environment.value(QStringLiteral("KYTY_MESH_LAYER"))
+		                  << "KYTY_PIPELINE_FAST_FIRST=" << environment.value(QStringLiteral("KYTY_PIPELINE_FAST_FIRST"));
+	}
 	return args;
 }
 
