@@ -650,8 +650,8 @@ bool GetHostMeshLayerDrop(uint64_t shader_hash) {
 		return true;
 	}
 	// Explicit per-shader drop remains available for diagnosis only. The normal AMD
-	// path now emits Layer through a Block interface member, so no game shader is blacklisted.
-	// titles rendering to array images can depend on it for correct layer routing.
+	// path emits Layer through a Block interface member; forcing a drop can still affect
+	// titles that render into array images.
 	static const std::vector<uint64_t> selected = [] {
 		std::vector<uint64_t> hashes;
 		const char* const     text = std::getenv("KYTY_MESH_LAYER_DROP_SHADERS");
