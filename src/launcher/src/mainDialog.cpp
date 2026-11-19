@@ -616,7 +616,7 @@ static QStringList SetupEmulatorProcess(QProcess* process, const QString& interp
 	// Other mesh shaders keep their Layer output, preserving layered 3D render targets.
 	{
 		auto environment = process->processEnvironment();
-		environment.insert(QStringLiteral("KYTY_MESH_LAYER_DROP_SHADERS"), QStringLiteral("0x4e991d9d461f621d"));
+		environment.insert(QStringLiteral("KYTY_MESH_LAYER_DROP_SHADERS"), QStringLiteral("0x4e991d9d461f621d,0x9fc48aa9f987c1a4"));
 		environment.insert(QStringLiteral("KYTY_MESH_LAYER"), QStringLiteral("keep"));
 		environment.insert(QStringLiteral("KYTY_PIPELINE_FAST_FIRST"), QStringLiteral("0"));
 		process->setProcessEnvironment(environment);
