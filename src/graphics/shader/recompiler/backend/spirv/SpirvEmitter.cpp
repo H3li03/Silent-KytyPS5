@@ -13,6 +13,7 @@
 #include <array>
 #include <atomic>
 #include <bit>
+#include <cctype>
 #include <cinttypes>
 #include <cmath>
 #include <cstdio>
@@ -22,6 +23,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_set>
+#include <vector>
 
 namespace Libs::Graphics::ShaderRecompiler::Spirv {
 
@@ -641,6 +643,50 @@ void SetHostMeshLayerDrop(bool drop) {
 }
 bool GetHostMeshLayerDrop() {
 	return g_mesh_layer_drop.load(std::memory_order_relaxed);
+}
+
+bool GetHostMeshLayerDrop(uint64_t shader_hash) {
+	if (GetHostMeshLayerDrop()) {
+		return true;
+	}
+	// This is deliberately a per-shader list: globally dropping Layer can misroute geometry
+	// when a title renders to array images. The selected shader's codegen key includes this
+	// decision in PipelineCache::BuildKey, so both in-memory and disk permutations are distinct.
+	static const std::vector<uint64_t> selected = [] {
+		std::vector<uint64_t> hashes;
+		const char* const     text = std::getenv("KYTY_MESH_LAYER_DROP_SHADERS");
+		if (text == nullptr || text[0] == '\\0') {
+			return hashes;
+		}
+		const char* cursor = text;
+		while (*cursor != '\\0') {
+			while (*cursor == ',' || *cursor == ';' || std::isspace(static_cast<unsigned char>(*cursor))) {
+				++cursor;
+			}
+			if (*cursor == '\\0') {
+				break;
+			}
+			char* end = nullptr;
+			const auto value = std::strtoull(cursor, &end, 0);
+			if (end == cursor) {
+				while (*cursor != '\\0' && *cursor != ',' && *cursor != ';') {
+					++cursor;
+				}
+				continue;
+			}
+			while (std::isspace(static_cast<unsigned char>(*end))) {
+				++end;
+			}
+			if (*end == '\\0' || *end == ',' || *end == ';') {
+				hashes.push_back(static_cast<uint64_t>(value));
+			}
+			cursor = end;
+		}
+		std::sort(hashes.begin(), hashes.end());
+		hashes.erase(std::unique(hashes.begin(), hashes.end()), hashes.end());
+		return hashes;
+	}();
+	return std::binary_search(selected.begin(), selected.end(), shader_hash);
 }
 
 static std::atomic<bool> g_coherent_load_vendor_barrier {false};
