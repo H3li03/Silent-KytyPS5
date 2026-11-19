@@ -125,7 +125,7 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	const bool mesh_pipeline_noopt = mesh_pipeline && MeshPipelineNoOptimizationEnabled();
 	Log::WriteMeshDiagnostic(fmt::sprintf(
 	    "KYTY_MESH_DIAG_PIPELINE_CLASSIFY mesh=%u original_stages=%u driver_stages=%u "
-	    "original_fragment=%u mesh_noopt=%u add_empty_requested=%u\\n",
+	    "original_fragment=%u mesh_noopt=%u add_empty_requested=%u\n",
 	    mesh_pipeline ? 1u : 0u, original.stageCount, plain_info.stageCount,
 	    mesh_fragment_pipeline ? 1u : 0u, mesh_pipeline_noopt ? 1u : 0u,
 	    add_empty_fragment_env != nullptr && *add_empty_fragment_env != '\\0' &&
