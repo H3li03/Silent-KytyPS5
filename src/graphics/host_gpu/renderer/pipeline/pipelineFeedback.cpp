@@ -524,14 +524,17 @@ std::atomic<uint64_t>             g_applied {0};
 void Configure(vk::Device device, uint32_t vendor_id) {
 	const char* value = std::getenv("KYTY_EMPTY_FS");
 	const int   mode  = value != nullptr ? std::atoi(value) : 0;
+	const char* mesh_test_value = std::getenv("KYTY_MESH_TEST_ADD_EMPTY_FRAGMENT");
+	const bool  mesh_test_only = mesh_test_value != nullptr && *mesh_test_value != '\0' &&
+	                             std::strcmp(mesh_test_value, "0") != 0;
 	Log::WriteMeshDiagnostic(fmt::sprintf(
-	    "KYTY_EMPTY_FS_CONFIG mode=%d env=%s vendor=0x%x device_null=%u module_before=%u\n",
-	    mode, value != nullptr ? value : "(unset)", vendor_id, device == nullptr ? 1u : 0u,
-	    g_module != nullptr ? 1u : 0u));
-	if (g_module != nullptr || mode <= 0 || (mode == 1 && vendor_id != kVendorNvidia)) {
+	    "KYTY_EMPTY_FS_CONFIG mode=%d env=%s mesh_test_only=%u vendor=0x%x device_null=%u module_before=%u\n",
+	    mode, value != nullptr ? value : "(unset)", mesh_test_only ? 1u : 0u, vendor_id,
+	    device == nullptr ? 1u : 0u, g_module != nullptr ? 1u : 0u));
+	if (g_module != nullptr || (mode <= 0 && !mesh_test_only) || (mode == 1 && vendor_id != kVendorNvidia)) {
 		const char* reason = g_module != nullptr ? "already_initialized"
-		                      : mode <= 0 ? "disabled"
-		                                  : "vendor_gate";
+		                      : mode <= 0 && !mesh_test_only ? "disabled"
+		                                                       : "vendor_gate";
 		Log::WriteMeshDiagnostic(fmt::sprintf(
 		    "KYTY_EMPTY_FS_CONFIG_SKIP reason=%s mode=%d vendor=0x%x module_available=%u\n",
 		    reason, mode, vendor_id, g_module != nullptr ? 1u : 0u));
@@ -580,7 +583,11 @@ bool Eligible(bool library, bool linked, uint32_t stage_count, bool has_fragment
 }
 
 const vk::GraphicsPipelineCreateInfo& Apply(const vk::GraphicsPipelineCreateInfo& info, Storage& storage) noexcept {
-	if (g_module == nullptr) {
+	// A diagnostic-only module may exist solely for KYTY_MESH_TEST_ADD_EMPTY_FRAGMENT.
+	// Do not let that targeted A/B test inject a fragment stage into unrelated pipelines.
+	const char* empty_fs_value = std::getenv("KYTY_EMPTY_FS");
+	if (g_module == nullptr || empty_fs_value == nullptr || *empty_fs_value == '\0' ||
+	    std::strcmp(empty_fs_value, "0") == 0) {
 		return info;
 	}
 	bool linked = false;
