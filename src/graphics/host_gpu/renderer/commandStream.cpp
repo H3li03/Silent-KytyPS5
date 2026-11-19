@@ -1044,6 +1044,11 @@ uint64_t Encoder::Splice(Ring& source, uint64_t end) {
 }
 
 void Encoder::Begin(vk::CommandBuffer command, uint64_t tick, uint64_t record_ns) {
+	static std::atomic_flag diag_once = ATOMIC_FLAG_INIT;
+	if (!diag_once.test_and_set(std::memory_order_relaxed)) {
+		std::printf("KYTY_MESH_STREAM_DIAG_V2 encoder-active\n");
+		std::fflush(stdout);
+	}
 	m_cb_digest  = 0;
 	m_cb_packets = 0;
 	auto w       = Open(Op::Begin, Sz<BeginPacket>(), false);
@@ -1319,6 +1324,13 @@ void Encoder::bindVertexBuffers2(uint32_t first, uint32_t count, const vk::Buffe
 }
 
 void Encoder::resolvedDraw(const ResolvedDrawPacket& packet_in, const ResolvedDrawArrays& arrays) {
+	static std::atomic_uint32_t diag_count {0};
+	const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);
+	if (diag_id < 32) {
+		std::printf("KYTY_DRAW_ENCODE resolved=%u flags=0x%x count=%u instances=%u\n", diag_id,
+		            packet_in.flags, packet_in.count, packet_in.instance_count);
+		std::fflush(stdout);
+	}
 	const auto slots = openResolvedDraw(packet_in, arrays);
 	if (packet_in.info_count != 0) {
 		std::memcpy(slots.infos, arrays.infos, sizeof(DescriptorInfo) * packet_in.info_count);
@@ -1481,6 +1493,13 @@ void Encoder::setColorWriteEnableEXT(uint32_t count, const vk::Bool32* enables) 
 
 void Encoder::draw(uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex,
                    uint32_t first_instance) {
+	static std::atomic_uint32_t diag_count {0};
+	const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);
+	if (diag_id < 32) {
+		std::printf("KYTY_DRAW_ENCODE direct=%u vertices=%u instances=%u first=%u\n", diag_id,
+		            vertex_count, instance_count, first_vertex);
+		std::fflush(stdout);
+	}
 	auto w = Open(Op::Draw, Sz<DrawPacket>(), false);
 	w.Put(DrawPacket {vertex_count, instance_count, first_vertex, first_instance});
 	Close(w, m_options.verify ? VerifyHash::Value(Op::Draw, vertex_count, instance_count,
@@ -1490,6 +1509,13 @@ void Encoder::draw(uint32_t vertex_count, uint32_t instance_count, uint32_t firs
 
 void Encoder::drawIndexed(uint32_t index_count, uint32_t instance_count, uint32_t first_index,
                           int32_t vertex_offset, uint32_t first_instance) {
+	static std::atomic_uint32_t diag_count {0};
+	const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);
+	if (diag_id < 32) {
+		std::printf("KYTY_DRAW_ENCODE indexed=%u indices=%u instances=%u first=%u\n", diag_id,
+		            index_count, instance_count, first_index);
+		std::fflush(stdout);
+	}
 	auto w = Open(Op::DrawIndexed, Sz<DrawIndexedPacket>(), false);
 	w.Put(DrawIndexedPacket {index_count, instance_count, first_index, vertex_offset,
 	                         first_instance});
@@ -1500,6 +1526,12 @@ void Encoder::drawIndexed(uint32_t index_count, uint32_t instance_count, uint32_
 }
 
 void Encoder::drawMeshTasksEXT(uint32_t x, uint32_t y, uint32_t z) {
+	static std::atomic_uint32_t diag_count {0};
+	const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);
+	if (diag_id < 32) {
+		std::printf("KYTY_MESH_ENCODE direct=%u groups=(%u,%u,%u)\n", diag_id, x, y, z);
+		std::fflush(stdout);
+	}
 	auto w = Open(Op::DrawMeshTasks, Sz<Groups3Packet>(), false);
 	w.Put(Groups3Packet {x, y, z});
 	Close(w, m_options.verify ? VerifyHash::Value(Op::DrawMeshTasks, x, y, z) : 0);
@@ -1523,6 +1555,15 @@ uint64_t HandleBits(vk::QueryPool pool) {
 #define KYTY_STREAM_INDIRECT(method, op)                                                           \
 	void Encoder::method(vk::Buffer buffer, vk::DeviceSize offset, uint32_t draw_count,            \
 	                     uint32_t stride) {                                                        \
+		if (Op::op == Op::DrawMeshTasksIndirect) {                                                   \
+			static std::atomic_uint32_t diag_count {0};                                               \
+			const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);                  \
+			if (diag_id < 32) {                                                                       \
+				std::printf("KYTY_MESH_ENCODE indirect=%u draws=%u stride=%u offset=%llu\\n", diag_id, \
+				            draw_count, stride, static_cast<unsigned long long>(offset));               \
+				std::fflush(stdout);                                                                    \
+			}                                                                                         \
+		}                                                                                           \
 		auto w = Open(Op::op, Sz<IndirectPacket>(), false);                                        \
 		w.Put(IndirectPacket {buffer, offset, draw_count, stride});                                \
 		Close(w, m_options.verify                                                                  \
@@ -1537,6 +1578,15 @@ KYTY_STREAM_INDIRECT(drawIndexedIndirect, DrawIndexedIndirect)
 #define KYTY_STREAM_INDIRECT_COUNT(method, op)                                                     \
 	void Encoder::method(vk::Buffer buffer, vk::DeviceSize offset, vk::Buffer count_buffer,        \
 	                     vk::DeviceSize count_offset, uint32_t max_count, uint32_t stride) {       \
+		if (Op::op == Op::DrawMeshTasksIndirectCount) {                                              \
+			static std::atomic_uint32_t diag_count {0};                                               \
+			const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);                  \
+			if (diag_id < 32) {                                                                       \
+				std::printf("KYTY_MESH_ENCODE indirect_count=%u max=%u stride=%u offset=%llu\\n", diag_id, \
+				            max_count, stride, static_cast<unsigned long long>(offset));                \
+				std::fflush(stdout);                                                                    \
+			}                                                                                         \
+		}                                                                                           \
 		auto w = Open(Op::op, Sz<IndirectCountPacket>(), false);                                   \
 		w.Put(                                                                                     \
 		    IndirectCountPacket {buffer, offset, count_buffer, count_offset, max_count, stride});  \
