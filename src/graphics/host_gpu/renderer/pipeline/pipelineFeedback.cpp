@@ -123,6 +123,12 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	const auto* empty_fragment_test_env = std::getenv("KYTY_MESH_TEST_EMPTY_FRAGMENT");
 	const bool empty_fragment_test = mesh_fragment_pipeline && empty_fragment_test_env != nullptr &&
 	                                 *empty_fragment_test_env != '\0' && std::strcmp(empty_fragment_test_env, "0") != 0;
+	// Diagnostic A/B: append the existing empty fragment shader to Mesh-only pipelines. This
+	// isolates the driver's no-fragment Mesh path without changing the Mesh shader or its Layer output.
+	const auto* add_empty_fragment_env = std::getenv("KYTY_MESH_TEST_ADD_EMPTY_FRAGMENT");
+	const bool add_empty_fragment_test = mesh_pipeline && !mesh_fragment_pipeline &&
+	                                      add_empty_fragment_env != nullptr && *add_empty_fragment_env != '\0' &&
+	                                      std::strcmp(add_empty_fragment_env, "0") != 0;
 		const auto* serialize_mesh_env = std::getenv("KYTY_MESH_PIPELINE_SERIALIZE");
 	const bool serialize_mesh_requested = serialize_mesh_env != nullptr && *serialize_mesh_env != '\0' &&
 	                                      std::strcmp(serialize_mesh_env, "0") != 0;
@@ -150,6 +156,7 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	// fragment module. This is diagnostic-only and intentionally changes color output.
 	std::array<vk::PipelineShaderStageCreateInfo, 8> empty_fragment_stages {};
 	vk::GraphicsPipelineCreateInfo empty_fragment_info {};
+	EmptyFragment::Storage add_empty_fragment_storage;
 	const vk::GraphicsPipelineCreateInfo* selected_driver_info = &driver_info;
 	if (empty_fragment_test) {
 		const auto empty_module = EmptyFragment::Module();
@@ -172,6 +179,19 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 			}
 		} else {
 			Log::WriteMeshDiagnostic("KYTY_MESH_DIAG_EMPTY_FRAGMENT_TEST active=0 module_unavailable=1\n");
+		}
+	}
+	if (add_empty_fragment_test) {
+		const auto& with_empty_fragment = EmptyFragment::Apply(driver_info, add_empty_fragment_storage);
+		if (with_empty_fragment.stageCount == driver_info.stageCount + 1) {
+			selected_driver_info = &with_empty_fragment;
+			Log::WriteMeshDiagnostic(fmt::sprintf(
+			    "KYTY_MESH_DIAG_EMPTY_FRAGMENT_TEST added=1 original_stages=%u new_stages=%u\\n",
+			    driver_info.stageCount, with_empty_fragment.stageCount));
+		} else {
+			Log::WriteMeshDiagnostic(fmt::sprintf(
+			    "KYTY_MESH_DIAG_EMPTY_FRAGMENT_TEST added=0 module_available=%u original_stages=%u\\n",
+			    EmptyFragment::Module() != nullptr ? 1u : 0u, driver_info.stageCount));
 		}
 	}
 	// Trace the exact graphics-pipeline call that reaches the AMD Vulkan driver.
