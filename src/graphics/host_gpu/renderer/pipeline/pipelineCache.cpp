@@ -3531,7 +3531,7 @@ struct PipelineCache::ProgramCache {
 		g_shader_modules.Add(module, driver_spirv);
 		times.module_ns = CompileClockNs() - module_begin;
 		EXIT_IF(module == nullptr);
-		PipelineStats::RegisterModule(module, stage_name, options.shader_hash); // KYTY_PIPELINE_STATS
+		PipelineStats::RegisterModule(module, stage_name, options.shader_hash, driver_spirv); // emitted SPIR-V identity
 		// KYTY_SPIRV_VARIANT: each group's edited words, taken before the emitted words move on.
 		const auto variant_groups = SpirvVariantSettings().size();
 		std::vector<std::vector<uint32_t>> variant_words(variant_groups);
@@ -3581,7 +3581,7 @@ struct PipelineCache::ProgramCache {
 				const auto variant_module = CompileSPV(edited, device);
 				if (variant_module == nullptr) continue;
 				g_shader_modules.Add(variant_module, edited);
-				PipelineStats::RegisterModule(variant_module, "variant", options.shader_hash);
+				PipelineStats::RegisterModule(variant_module, "variant", options.shader_hash, edited);
 				const auto variant_id = next_shader_id.fetch_add(1, std::memory_order_relaxed) + 1u;
 				GpuOpProfiler::RegisterShader(variant_id, stage_name, options.shader_hash);
 				RegisterSpirvVariant(base_id, g, {.id = variant_id, .module = variant_module});
@@ -3608,7 +3608,7 @@ struct PipelineCache::ProgramCache {
 			const auto  plain_module = CompileSPV(plain_driver, device);
 			EXIT_IF(plain_module == nullptr);
 			g_shader_modules.Add(plain_module, plain_driver);
-			PipelineStats::RegisterModule(plain_module, "psplain", options.shader_hash); // KYTY_PIPELINE_STATS
+			PipelineStats::RegisterModule(plain_module, "psplain", options.shader_hash, plain_driver);
 			std::vector<std::vector<uint32_t>> plain_variant_words(variant_groups);
 			for (size_t g = 0; g < variant_groups; g++) {
 				plain_variant_words[g] = SpirvVariantWords(plain_driver, options.shader_hash, g);
