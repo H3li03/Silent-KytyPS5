@@ -186,11 +186,11 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 		if (with_empty_fragment.stageCount == driver_info.stageCount + 1) {
 			selected_driver_info = &with_empty_fragment;
 			Log::WriteMeshDiagnostic(fmt::sprintf(
-			    "KYTY_MESH_DIAG_EMPTY_FRAGMENT_TEST added=1 original_stages=%u new_stages=%u\\n",
+			    "KYTY_MESH_DIAG_EMPTY_FRAGMENT_TEST added=1 original_stages=%u new_stages=%u\n",
 			    driver_info.stageCount, with_empty_fragment.stageCount));
 		} else {
 			Log::WriteMeshDiagnostic(fmt::sprintf(
-			    "KYTY_MESH_DIAG_EMPTY_FRAGMENT_TEST added=0 module_available=%u original_stages=%u\\n",
+			    "KYTY_MESH_DIAG_EMPTY_FRAGMENT_TEST added=0 module_available=%u original_stages=%u\n",
 			    EmptyFragment::Module() != nullptr ? 1u : 0u, driver_info.stageCount));
 		}
 	}
