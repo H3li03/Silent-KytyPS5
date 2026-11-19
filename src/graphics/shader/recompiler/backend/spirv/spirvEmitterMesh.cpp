@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cinttypes>
 #include <cstdlib>
 #include <cstring>
 
