@@ -8631,6 +8631,8 @@ PipelineCache::PipelineCache(GraphicContext& graphics)
     : m_graphics(graphics), m_program_cache(std::make_unique<ProgramCache>(graphics.device, graphics.maintenance8_enabled)),
       m_diagnostics(std::make_unique<PipelineDiagnostics>()) {
 	EXIT_NOT_IMPLEMENTED(!Common::Thread::IsMainThread());
+	// Create the optional empty fragment module before any pipeline can request the Mesh-only A/B.
+	EmptyFragment::Configure(graphics.device, graphics.GetPhysicalDeviceProperties().vendorID);
 	// Each cache counts its generations in its own range, so a per-thread lookup memo left by a
 	// destroyed cache can never match a later cache allocated at the same address (tests create
 	// several render contexts in one process).
