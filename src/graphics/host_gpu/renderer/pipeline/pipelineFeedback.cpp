@@ -117,9 +117,21 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	const bool disable_optimization_env_enabled =
 	    disable_optimization_env != nullptr && *disable_optimization_env != '\0' &&
 	    std::strcmp(disable_optimization_env, "0") != 0;
-	const bool mesh_pipeline = IsMeshPipeline(plain_info);
-	const bool mesh_fragment_pipeline = mesh_pipeline && IsMeshFragmentPipeline(plain_info);
+	// Classify from the caller's original stages: KYTY_EMPTY_FS may already have
+	// appended a synthetic fragment stage to plain_info, which must not hide a Mesh-only
+	// pipeline from Mesh-specific workarounds or diagnostics.
+	const bool mesh_pipeline = IsMeshPipeline(original);
+	const bool mesh_fragment_pipeline = mesh_pipeline && IsMeshFragmentPipeline(original);
 	const bool mesh_pipeline_noopt = mesh_pipeline && MeshPipelineNoOptimizationEnabled();
+	Log::WriteMeshDiagnostic(fmt::sprintf(
+	    "KYTY_MESH_DIAG_PIPELINE_CLASSIFY mesh=%u original_stages=%u driver_stages=%u "
+	    "original_fragment=%u mesh_noopt=%u add_empty_requested=%u\\n",
+	    mesh_pipeline ? 1u : 0u, original.stageCount, plain_info.stageCount,
+	    mesh_fragment_pipeline ? 1u : 0u, mesh_pipeline_noopt ? 1u : 0u,
+	    add_empty_fragment_env != nullptr && *add_empty_fragment_env != '\\0' &&
+	            std::strcmp(add_empty_fragment_env, "0") != 0
+	        ? 1u
+	        : 0u));
 	const auto* empty_fragment_test_env = std::getenv("KYTY_MESH_TEST_EMPTY_FRAGMENT");
 	const bool empty_fragment_test = mesh_fragment_pipeline && empty_fragment_test_env != nullptr &&
 	                                 *empty_fragment_test_env != '\0' && std::strcmp(empty_fragment_test_env, "0") != 0;
