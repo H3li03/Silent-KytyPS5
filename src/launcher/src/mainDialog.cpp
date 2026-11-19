@@ -612,21 +612,21 @@ static QStringList SetupEmulatorProcess(QProcess* process, const QString& interp
 		environment.insert(QStringLiteral("KYTY_PRESENT_ABS_VBLANK"), QStringLiteral("1"));
 		process->setProcessEnvironment(environment);
 	}
-	// Revert the experimental AMD Layer override to the last known non-black 3D profile.
-	// Keep the two per-shader Layer drops used by the earlier diagnostic build, and restore
-	// fast-first pipeline creation. The standards-conforming SPIR-V Layer interface remains
-	// in place; this is a runtime routing/profile rollback, not a shader-code rollback.
+	// Preserve the complete guest Mesh shader interface on AMD, including per-primitive
+	// BuiltInLayer. Do not apply the old per-shader Layer-drop workaround: it can route layered
+	// geometry to the wrong target and leaves this title's 3D output incomplete.
+	// Fast-first is explicitly NVIDIA-only; FastFirstForVendor also hard-gates AMD against stale
+	// launcher or user environment overrides.
 	{
 		auto environment = process->processEnvironment();
-		environment.insert(QStringLiteral("KYTY_MESH_LAYER_DROP_SHADERS"),
-		                   QStringLiteral("0x4e991d9d461f621d,0x9fc48aa9f987c1a4"));
+		environment.remove(QStringLiteral("KYTY_MESH_LAYER_DROP_SHADERS"));
 		environment.insert(QStringLiteral("KYTY_MESH_LAYER"), QStringLiteral("keep"));
-		environment.insert(QStringLiteral("KYTY_PIPELINE_FAST_FIRST"), QStringLiteral("1"));
+		environment.insert(QStringLiteral("KYTY_PIPELINE_FAST_FIRST"), QStringLiteral("nvidia"));
 		process->setProcessEnvironment(environment);
-		qInfo().noquote() << "AMD mesh Layer recovery profile:"
+		qInfo().noquote() << "AMD mesh compatibility profile:"
+		                  << "KYTY_MESH_LAYER=" << environment.value(QStringLiteral("KYTY_MESH_LAYER"))
 		                  << "KYTY_MESH_LAYER_DROP_SHADERS="
 		                  << environment.value(QStringLiteral("KYTY_MESH_LAYER_DROP_SHADERS"))
-		                  << "KYTY_MESH_LAYER=" << environment.value(QStringLiteral("KYTY_MESH_LAYER"))
 		                  << "KYTY_PIPELINE_FAST_FIRST=" << environment.value(QStringLiteral("KYTY_PIPELINE_FAST_FIRST"));
 	}
 	return args;
