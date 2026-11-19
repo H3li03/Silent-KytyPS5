@@ -106,6 +106,13 @@ void WriteStencil(KeyWriter& key, const vk::StencilOpState& state) {
 
 bool PipelineLibraryRequested() {
 	static const bool requested = [] {
+		// AMD RDNA1/2 proprietary Windows drivers have documented crashes while
+		// fast-linking graphics pipeline libraries. The safe profile deliberately
+		// uses monolithic pipelines on this path.
+		const auto* safe = std::getenv("KYTY_AMD_SAFE_PIPELINES");
+		if (safe != nullptr && *safe != '\0' && std::strcmp(safe, "0") != 0) {
+			return false;
+		}
 		const auto* value = std::getenv("KYTY_PIPELINE_LIBRARY");
 		return value != nullptr && *value != '\0' && std::strcmp(value, "0") != 0;
 	}();
