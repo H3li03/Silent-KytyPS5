@@ -67,7 +67,7 @@ void Initialize() {
 		const bool truncate = std::getenv(RelaunchedVariable) == nullptr;
 		auto mesh_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(mesh_path.native(), truncate);
 		mesh_sink->set_formatter(std::make_unique<spdlog::pattern_formatter>(
-		    "%v", spdlog::pattern_time_type::local, ""));
+		    "%Y-%m-%d %H:%M:%S.%e [thread %t] %v", spdlog::pattern_time_type::local, ""));
 		g_mesh_logger = new spdlog::logger("kyty-mesh-investigation", std::move(mesh_sink));
 		const auto* layer = std::getenv("KYTY_MESH_LAYER");
 		const auto* fast_first = std::getenv("KYTY_PIPELINE_FAST_FIRST");
