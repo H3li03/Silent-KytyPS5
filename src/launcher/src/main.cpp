@@ -30,14 +30,29 @@ static QString ApplyBundledPreset() {
 		return warning;
 	}
 
-	for (const QString& key : QProcessEnvironment::systemEnvironment().keys()) {
-		if (key.startsWith("KYTY_", Qt::CaseInsensitive) ||
-		    key.startsWith("TRACY_", Qt::CaseInsensitive)) {
+	// The bundled preset replaces ordinary KYTY_/TRACY_ settings, but diagnostic overrides
+	// supplied by the caller must survive so they reach the emulator launched by QProcess.
+	const auto original_environment = QProcessEnvironment::systemEnvironment();
+	QProcessEnvironment diagnostic_overrides;
+	for (const QString& key : original_environment.keys()) {
+		if (key.startsWith(QStringLiteral("KYTY_MESH_"), Qt::CaseInsensitive) ||
+		    key.startsWith(QStringLiteral("KYTY_AMD_"), Qt::CaseInsensitive) ||
+		    key.startsWith(QStringLiteral("KYTY_PIPELINE_"), Qt::CaseInsensitive)) {
+			diagnostic_overrides.insert(key, original_environment.value(key));
+		}
+	}
+
+	for (const QString& key : original_environment.keys()) {
+		if (key.startsWith(QStringLiteral("KYTY_"), Qt::CaseInsensitive) ||
+		    key.startsWith(QStringLiteral("TRACY_"), Qt::CaseInsensitive)) {
 			qunsetenv(key.toLocal8Bit().constData());
 		}
 	}
 	for (const auto& entry : result.entries) {
 		qputenv(entry.key.c_str(), QByteArray::fromStdString(entry.value));
+	}
+	for (const QString& key : diagnostic_overrides.keys()) {
+		qputenv(key.toLocal8Bit().constData(), diagnostic_overrides.value(key).toLocal8Bit());
 	}
 	return {};
 }
