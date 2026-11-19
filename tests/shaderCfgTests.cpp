@@ -10896,6 +10896,34 @@ void TestMeshExportStorage() {
     const auto reg = std::ranges::find(layout.user_data_registers, 13u);
     Check(reg != layout.user_data_registers.end(), "mesh shader lost user s13");
     const auto source = DisassembleSpirvBinary(result.spirv);
+    // Layer must be emitted as a member of a per-primitive Block interface. The standalone
+    // BuiltIn Layer array also passes spirv-val, but crashes AMD's Windows mesh pipeline compiler.
+    std::unordered_set<uint32_t> layer_block_types, layer_builtin_types, per_primitive_types;
+    for (size_t i = 5; i < result.spirv.size();) {
+      const uint32_t words = result.spirv[i] >> 16u;
+      const auto opcode = static_cast<spv::Op>(result.spirv[i] & 0xffffu);
+      Check(words != 0 && i + words <= result.spirv.size(), "malformed mesh SPIR-V instruction");
+      if (opcode == spv::OpDecorate && words == 3u &&
+          result.spirv[i + 2] == static_cast<uint32_t>(spv::DecorationBlock)) {
+        layer_block_types.insert(result.spirv[i + 1]);
+      } else if (opcode == spv::OpMemberDecorate && words >= 4u) {
+        const uint32_t type = result.spirv[i + 1];
+        const uint32_t decoration = result.spirv[i + 3];
+        if (result.spirv[i + 2] == 0u && decoration == static_cast<uint32_t>(spv::DecorationPerPrimitiveEXT)) {
+          per_primitive_types.insert(type);
+        }
+        if (result.spirv[i + 2] == 0u && words == 5u &&
+            decoration == static_cast<uint32_t>(spv::DecorationBuiltIn) &&
+            result.spirv[i + 4] == static_cast<uint32_t>(spv::BuiltInLayer)) {
+          layer_builtin_types.insert(type);
+        }
+      }
+      i += words;
+    }
+    Check(std::ranges::any_of(layer_block_types, [&](uint32_t type) {
+            return layer_builtin_types.contains(type) && per_primitive_types.contains(type);
+          }),
+          "mesh Layer output is not a BuiltIn Layer member of a PerPrimitiveEXT Block");
     // A vertex exported at (0,0,0,0) marks its bit, and primitives using it are culled.
     Check(source.find("OpAtomicOr") != std::string::npos &&
               source.find("OpAll") != std::string::npos &&
