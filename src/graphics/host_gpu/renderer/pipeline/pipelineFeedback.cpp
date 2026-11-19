@@ -7,6 +7,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstdio>
+#include <cstdint>
 #include <cstring>
 #include <fmt/format.h>
 #include <mutex>
@@ -103,9 +104,10 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 			const auto& stage = create_info.pStages[i];
 			const auto* spec = stage.pSpecializationInfo;
 			Log::WriteMeshDiagnostic(fmt::sprintf(
-			    "KYTY_MESH_DIAG_PIPELINE_STAGE id=%u index=%u stage=%u entry=%s "
+			    "KYTY_MESH_DIAG_PIPELINE_STAGE id=%u index=%u stage=%u entry=%s module=0x%llx "
 			    "specialization_count=%u specialization_data_size=%u pnext=%u\n",
 			    id, i, static_cast<uint32_t>(stage.stage), stage.pName != nullptr ? stage.pName : "(null)",
+			    static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(stage.module)),
 			    spec != nullptr ? spec->mapEntryCount : 0u, spec != nullptr ? spec->dataSize : 0u,
 			    stage.pNext != nullptr ? 1u : 0u));
 			if (spec != nullptr && spec->pMapEntries != nullptr) {
