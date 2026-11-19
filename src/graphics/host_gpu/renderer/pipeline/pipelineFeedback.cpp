@@ -77,6 +77,25 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 		unoptimized_info.flags |= vk::PipelineCreateFlagBits::eDisableOptimization;
 	}
 	const auto& driver_info = disable_optimization ? unoptimized_info : plain_info;
+	// Trace the exact graphics-pipeline call that reaches the AMD Vulkan driver.
+	static std::atomic<uint32_t> trace_sequence {0};
+	const auto trace_create = [&](const vk::GraphicsPipelineCreateInfo& create_info) {
+		const auto id = trace_sequence.fetch_add(1, std::memory_order_relaxed);
+		Log::WriteMeshDiagnostic(fmt::sprintf(
+		    "KYTY_MESH_DIAG_PIPELINE_BEGIN id=%u path=%d stages=%u flags=0x%x\\n",
+		    id, static_cast<int>(path), create_info.stageCount, static_cast<uint32_t>(create_info.flags)));
+		for (uint32_t i = 0; i < create_info.stageCount && create_info.pStages != nullptr; i++) {
+			Log::WriteMeshDiagnostic(fmt::sprintf(
+			    "KYTY_MESH_DIAG_PIPELINE_STAGE id=%u index=%u stage=%u\\n",
+			    id, i, static_cast<uint32_t>(create_info.pStages[i].stage)));
+		}
+		const auto made = device.createGraphicsPipelines(cache, 1, &create_info, nullptr, pipeline);
+		Log::WriteMeshDiagnostic(fmt::sprintf(
+		    "KYTY_MESH_DIAG_PIPELINE_RETURN id=%u path=%d result=%d pipeline_null=%u\\n",
+		    id, static_cast<int>(path), static_cast<int>(made),
+		    pipeline == nullptr || *pipeline == nullptr ? 1u : 0u));
+		return made;
+	};
 	// KYTY_PIPELINE_STATS: the driver's copy asks for statistics.
 	vk::GraphicsPipelineCreateInfo stats_info;
 	const bool                     stats = PipelineStats::Enabled() && PipelineStats::Selected(driver_info);
@@ -90,7 +109,7 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	    static_cast<int>(path), info.stageCount, static_cast<uint32_t>(info.flags),
 	    disable_optimization ? 1u : 0u));
 	if (!Enabled()) {
-		const auto made = device.createGraphicsPipelines(cache, 1, &info, nullptr, pipeline);
+		const auto made = trace_create(info);
 		if (stats && made == vk::Result::eSuccess && *pipeline != nullptr) {
 			PipelineStats::Print(device, *pipeline, PipelineStats::Describe(info.pStages, info.stageCount), info.flags);
 		}
@@ -104,7 +123,7 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	auto copy                                   = info;
 	copy.pNext                                  = &feedback;
 	const auto begin                            = NowNs();
-	const auto result                           = device.createGraphicsPipelines(cache, 1, &copy, nullptr, pipeline);
+	const auto result                           = trace_create(copy);
 	const auto ns                               = NowNs() - begin;
 	auto&      c                                = g_counters[static_cast<size_t>(path)];
 	if (result != vk::Result::eSuccess || *pipeline == nullptr) {
