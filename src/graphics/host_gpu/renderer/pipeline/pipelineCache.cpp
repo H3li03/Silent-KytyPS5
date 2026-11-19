@@ -3427,7 +3427,7 @@ struct PipelineCache::ProgramCache {
 		}
 	};
 
-	static constexpr std::size_t MaxStaticKeyWords = 13 + ShaderVertexInputInfo::RES_MAX * 13;
+	static constexpr std::size_t MaxStaticKeyWords = 15 + ShaderVertexInputInfo::RES_MAX * 13;
 
 	static const char* ProgramStageName(ShaderType stage) {
 		switch (stage) {
@@ -3761,6 +3761,12 @@ struct PipelineCache::ProgramCache {
 		key.user_data_count = params.user_data_count;
 		key.code_size       = static_cast<uint32_t>(params.code.size());
 		BuildStageStaticKey(input_info, key.static_state);
+		if (key.stage == ShaderType::Mesh) {
+			// Mesh Layer output changes the emitted SPIR-V interface. Include the selected
+			// workaround in both the in-memory and persistent program-cache key.
+			key.static_state.push_back(0x4d4c4450u); // "MLDP"
+			key.static_state.push_back(ShaderRecompiler::Spirv::GetHostMeshLayerDrop(key.hash) ? 1u : 0u);
+		}
 		if (params.call_expansion != 0) [[unlikely]] {
 			// An expanded S_SWAPPC_B64 program (ExpandComputeCalls): its code depends on the callees.
 			key.static_state.push_back(static_cast<uint32_t>(params.call_expansion));
