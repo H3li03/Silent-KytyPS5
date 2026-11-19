@@ -86,7 +86,7 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	}
 	const auto& info = stats ? stats_info : driver_info;
 	Log::WriteMeshDiagnostic(fmt::sprintf(
-	    "KYTY_MESH_DIAG_PIPELINE_DRIVER_CALL path=%d stages=%u flags=0x%x disable_optimization=%u\\n",
+	    "KYTY_MESH_DIAG_PIPELINE_DRIVER_CALL path=%d stages=%u flags=0x%x disable_optimization=%u\n",
 	    static_cast<int>(path), info.stageCount, static_cast<uint32_t>(info.flags),
 	    disable_optimization ? 1u : 0u));
 	if (!Enabled()) {
