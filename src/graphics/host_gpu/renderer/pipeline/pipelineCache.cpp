@@ -711,8 +711,8 @@ public:
 	}
 
 private:
-	vk::Device                     m_device;
-	std::vector<vk::ShaderModule>   m_modules;
+	vk::Device                    m_device;
+	std::vector<vk::ShaderModule>  m_modules;
 };
 
 // Cross-process identity of a graphics pipeline: its create info serialized with module content
@@ -6442,9 +6442,9 @@ struct PipelineCache::FastFirstState {
 			*pipeline = nullptr;
 			return plain();
 		}
-		out.snapshot     = std::move(snapshot);
+		out.snapshot    = std::move(snapshot);
 		out.module_pins = std::move(module_pins);
-		out.fast_ns    = CompileClockNs() - begin;
+		out.fast_ns     = CompileClockNs() - begin;
 		if (PaceLog::StallTraceEnabled()) {
 			uint64_t words = 0;
 			for (uint32_t i = 0; i < info.stageCount; i++) words += g_shader_modules.WordsOf(info.pStages[i].module);
@@ -6516,9 +6516,9 @@ struct PipelineCache::FastFirstState {
 			*pipeline = nullptr;
 			return plain();
 		}
-		out.snapshot     = std::move(snapshot);
+		out.snapshot    = std::move(snapshot);
 		out.module_pins = std::move(module_pins);
-		out.fast_ns    = CompileClockNs() - begin;
+		out.fast_ns     = CompileClockNs() - begin;
 		PaceLog::NoteStall(begin, begin + out.fast_ns, PaceLog::StallFastBuild, outer.a,
 		                   static_cast<int>(g_shader_modules.WordsOf(info.stage.module)),
 		                   "unoptimized compute pipeline build");
