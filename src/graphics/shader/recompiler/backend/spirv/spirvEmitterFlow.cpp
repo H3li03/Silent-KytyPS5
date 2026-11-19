@@ -931,14 +931,29 @@ void EmitSharedMemoryBarrier(EmitterState& state) {
 	// wave's own operations, so the barrier stays at subgroup scope (KYTY_LDS_WAITCNT_BARRIER):
 	// it may sit where other waves of the workgroup do not go, and the AMD driver makes a
 	// workgroup-scope fence in a mesh shader a workgroup barrier, which then never completes.
-	if (state.program.stage == ShaderType::TessellationControl ||
-	    ShaderWorkgroupInput(state.program.stage, state.input_info) == nullptr ||
-	    GetCodegenOptions().lds_waitcnt_barrier == LdsWaitcntBarrier::Off) {
+	const auto option = GetCodegenOptions().lds_waitcnt_barrier;
+	const bool tess_control = state.program.stage == ShaderType::TessellationControl;
+	const bool has_workgroup = ShaderWorkgroupInput(state.program.stage, state.input_info) != nullptr;
+	const bool emit = !tess_control && has_workgroup && option != LdsWaitcntBarrier::Off;
+	static std::atomic<uint32_t> next_sequence {0};
+	const auto sequence = next_sequence.fetch_add(1, std::memory_order_relaxed);
+	if (sequence < 256) {
+		char line[256] {};
+		const char* action = emit ? "emit" : (tess_control ? "skip-tess-control" :
+		                                      (!has_workgroup ? "skip-no-workgroup" : "skip-option-off"));
+		const char* scope = option == LdsWaitcntBarrier::Workgroup ? "workgroup" :
+		                    (option == LdsWaitcntBarrier::Subgroup ? "subgroup" : "none");
+		std::snprintf(line, sizeof(line),
+		              "KYTY_MESH_DIAG_LDS_BARRIER seq=%u stage=%u option=%u scope=%s action=%s\n",
+		              sequence, static_cast<unsigned>(state.program.stage),
+		              static_cast<unsigned>(option), scope, action);
+		Log::WriteMeshDiagnostic(line);
+	}
+	if (!emit) {
 		return;
 	}
-	const auto scope = GetCodegenOptions().lds_waitcnt_barrier == LdsWaitcntBarrier::Workgroup
-	                       ? spv::ScopeWorkgroup
-	                       : spv::ScopeSubgroup;
+	const auto scope = option == LdsWaitcntBarrier::Workgroup ? spv::ScopeWorkgroup
+	                                                          : spv::ScopeSubgroup;
 	state.builder.AddFunction(spv::OpMemoryBarrier, ConstantU32(state, scope),
 	                          ConstantU32(state, spv::MemorySemanticsAcquireReleaseMask |
 	                                                 LdsMemorySemantics(state)));
