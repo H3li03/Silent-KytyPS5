@@ -168,7 +168,6 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	// fragment module. This is diagnostic-only and intentionally changes color output.
 	std::array<vk::PipelineShaderStageCreateInfo, 8> empty_fragment_stages {};
 	vk::GraphicsPipelineCreateInfo empty_fragment_info {};
-	EmptyFragment::Storage add_empty_fragment_storage;
 	const vk::GraphicsPipelineCreateInfo* selected_driver_info = &driver_info;
 	if (empty_fragment_test) {
 		const auto empty_module = EmptyFragment::Module();
