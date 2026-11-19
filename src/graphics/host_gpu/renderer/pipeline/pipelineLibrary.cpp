@@ -1,10 +1,14 @@
 #include "graphics/host_gpu/renderer/pipeline/pipelineLibrary.h"
 
 #include "common/assert.h"
+#include "common/logging/log.h"
+
+#include <fmt/format.h>
 #include "graphics/host_gpu/graphicContext.h"
 #include "graphics/host_gpu/renderer/pipeline/pipelineFeedback.h"
 
 #include <array>
+#include <atomic>
 #include <bit>
 #include <chrono>
 #include <cstdlib>
@@ -18,6 +22,26 @@ uint64_t LibraryClockNs() {
 	return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
 	                                 std::chrono::steady_clock::now().time_since_epoch())
 	                                 .count());
+}
+
+vk::Result TraceLibraryGraphicsCreate(vk::Device device, vk::PipelineCache cache,
+                                      const vk::GraphicsPipelineCreateInfo& info,
+                                      vk::Pipeline* pipeline, const char* path) {
+	static std::atomic<uint32_t> sequence {0};
+	const auto id = sequence.fetch_add(1, std::memory_order_relaxed);
+	Log::WriteMeshDiagnostic(fmt::sprintf(
+	    "KYTY_MESH_DIAG_VK_GRAPHICS_BEGIN id=%u path=%s stages=%u flags=0x%x\n",
+	    id, path, info.stageCount, static_cast<uint32_t>(info.flags)));
+	for (uint32_t i = 0; i < info.stageCount && info.pStages != nullptr; i++) {
+		Log::WriteMeshDiagnostic(fmt::sprintf(
+		    "KYTY_MESH_DIAG_VK_GRAPHICS_STAGE id=%u index=%u stage=%u\n",
+		    id, i, static_cast<uint32_t>(info.pStages[i].stage)));
+	}
+	const auto result = device.createGraphicsPipelines(cache, 1, &info, nullptr, pipeline);
+	Log::WriteMeshDiagnostic(fmt::sprintf(
+	    "KYTY_MESH_DIAG_VK_GRAPHICS_RETURN id=%u path=%s result=%d pipeline_null=%u\n",
+	    id, path, static_cast<int>(result), pipeline == nullptr || *pipeline == nullptr ? 1u : 0u));
+	return result;
 }
 
 // Library keys are the exact field values of the state a library consumes, serialized into
@@ -140,7 +164,7 @@ vk::Pipeline GraphicsPipelineLibrary::GetLibrary(LibraryMap& libraries, Key key,
 	}
 	const auto   begin   = LibraryClockNs();
 	vk::Pipeline library = nullptr;
-	if (m_graphics.device.createGraphicsPipelines(driver_cache, 1, &info, nullptr, &library) !=
+	if (TraceLibraryGraphicsCreate(m_graphics.device, driver_cache, info, &library, "library_get") !=
 	        vk::Result::eSuccess ||
 	    library == nullptr) {
 		return nullptr;
@@ -160,8 +184,8 @@ GraphicsPipelineLibrary::Create(const vk::GraphicsPipelineCreateInfo& info,
 		result.path     = Path::Monolithic;
 		result.fallback = reason;
 		EmptyFragment::Storage storage; // KYTY_EMPTY_FS: the driver's copy only
-		result.result = m_graphics.device.createGraphicsPipelines(driver_cache, 1, &EmptyFragment::Apply(info, storage),
-		                                                          nullptr, &result.pipeline);
+		result.result = TraceLibraryGraphicsCreate(m_graphics.device, driver_cache, EmptyFragment::Apply(info, storage),
+		                                                     &result.pipeline, "monolithic");
 		result.optimize.reset();
 		return std::move(result);
 	};
@@ -177,8 +201,8 @@ GraphicsPipelineLibrary::Create(const vk::GraphicsPipelineCreateInfo& info,
 		probe.flags           = vk::PipelineCreateFlagBits::eFailOnPipelineCompileRequired;
 		vk::Pipeline           pipeline = nullptr;
 		EmptyFragment::Storage storage; // KYTY_EMPTY_FS: as the monolithic build would make it
-		const auto             probed   = m_graphics.device.createGraphicsPipelines(
-		                driver_cache, 1, &EmptyFragment::Apply(probe, storage), nullptr, &pipeline);
+		const auto             probed   = TraceLibraryGraphicsCreate(m_graphics.device, driver_cache, EmptyFragment::Apply(probe, storage),
+		                                                     &pipeline, "cache_probe");
 		if (probed == vk::Result::eSuccess && pipeline != nullptr) {
 			result.path     = Path::CacheHit;
 			result.pipeline = pipeline;
@@ -394,7 +418,7 @@ GraphicsPipelineLibrary::Create(const vk::GraphicsPipelineCreateInfo& info,
 	link.basePipelineIndex  = -1;
 	const auto   link_begin = LibraryClockNs();
 	vk::Pipeline pipeline   = nullptr;
-	if (m_graphics.device.createGraphicsPipelines(driver_cache, 1, &link, nullptr, &pipeline) !=
+	if (TraceLibraryGraphicsCreate(m_graphics.device, driver_cache, link, &pipeline, "library_link") !=
 	        vk::Result::eSuccess ||
 	    pipeline == nullptr) {
 		return monolithic("link-failed");
