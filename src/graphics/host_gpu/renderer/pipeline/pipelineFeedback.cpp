@@ -127,11 +127,14 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	// Mesh-only and Mesh+Fragment pipelines share the AMD mesh compiler.
 	const bool serialize_mesh_pipeline = mesh_pipeline && serialize_mesh_env != nullptr &&
 	                                    *serialize_mesh_env != '\0' && std::strcmp(serialize_mesh_env, "0") != 0;
-	// Broader race-isolation experiment: serialize every graphics-pipeline driver call,
-	// including non-Mesh pipelines that may otherwise overlap a Mesh compilation.
+	// Race-isolation experiment: when Mesh serialization is requested, serialize every
+	// graphics-pipeline driver call as well. This prevents non-Mesh pipelines from entering
+	// the AMD driver while a Mesh pipeline is being compiled. The explicit global variable
+	// remains available when testing without the Mesh-specific switch.
 	const auto* serialize_all_env = std::getenv("KYTY_GRAPHICS_PIPELINE_SERIALIZE");
-	const bool serialize_all_pipeline = serialize_all_env != nullptr && *serialize_all_env != '\0' &&
-	                                    std::strcmp(serialize_all_env, "0") != 0;
+	const bool serialize_all_requested = serialize_all_env != nullptr && *serialize_all_env != '\0' &&
+	                                     std::strcmp(serialize_all_env, "0") != 0;
+	const bool serialize_all_pipeline = serialize_all_requested || serialize_mesh_pipeline;
 	// Combined AMD mitigation: scalarized tiler selectors are in gpu_tiler_standard64_3d.inc;
 	// KYTY_AMD_SAFE_PIPELINES disables GPL fast-linking in pipelineLibrary.cpp; and this
 	// targeted rule disables driver optimization for Mesh pipelines. Guest shader semantics,
