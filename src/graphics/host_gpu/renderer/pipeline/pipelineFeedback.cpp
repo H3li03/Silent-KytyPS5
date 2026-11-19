@@ -513,7 +513,7 @@ void Configure(vk::Device device, uint32_t vendor_id) {
 	const char* value = std::getenv("KYTY_EMPTY_FS");
 	const int   mode  = value != nullptr ? std::atoi(value) : 0;
 	Log::WriteMeshDiagnostic(fmt::sprintf(
-	    "KYTY_EMPTY_FS_CONFIG mode=%d env=%s vendor=0x%x device_null=%u module_before=%u\\n",
+	    "KYTY_EMPTY_FS_CONFIG mode=%d env=%s vendor=0x%x device_null=%u module_before=%u\n",
 	    mode, value != nullptr ? value : "(unset)", vendor_id, device == nullptr ? 1u : 0u,
 	    g_module != nullptr ? 1u : 0u));
 	if (g_module != nullptr || mode <= 0 || (mode == 1 && vendor_id != kVendorNvidia)) {
@@ -521,16 +521,16 @@ void Configure(vk::Device device, uint32_t vendor_id) {
 		                      : mode <= 0 ? "disabled"
 		                                  : "vendor_gate";
 		Log::WriteMeshDiagnostic(fmt::sprintf(
-		    "KYTY_EMPTY_FS_CONFIG_SKIP reason=%s mode=%d vendor=0x%x module_available=%u\\n",
+		    "KYTY_EMPTY_FS_CONFIG_SKIP reason=%s mode=%d vendor=0x%x module_available=%u\n",
 		    reason, mode, vendor_id, g_module != nullptr ? 1u : 0u));
 		if (mode == 1 && vendor_id != kVendorNvidia) {
-			std::printf("Kyty empty fragment shader: off (KYTY_EMPTY_FS=1 applies to NVIDIA only; vendor 0x%x)\\n",
+			std::printf("Kyty empty fragment shader: off (KYTY_EMPTY_FS=1 applies to NVIDIA only; vendor 0x%x)\n",
 			            vendor_id);
 		}
 		return;
 	}
 	if (device == nullptr) {
-		Log::WriteMeshDiagnostic("KYTY_EMPTY_FS_CREATE skipped=1 reason=null_device\\n");
+		Log::WriteMeshDiagnostic("KYTY_EMPTY_FS_CREATE skipped=1 reason=null_device\n");
 		return;
 	}
 	vk::ShaderModuleCreateInfo create {};
@@ -539,11 +539,11 @@ void Configure(vk::Device device, uint32_t vendor_id) {
 	vk::ShaderModule module = nullptr;
 	const vk::Result result = device.createShaderModule(&create, nullptr, &module);
 	Log::WriteMeshDiagnostic(fmt::sprintf(
-	    "KYTY_EMPTY_FS_CREATE result=%d module_null=%u code_size=%zu spirv_words=%zu\\n",
+	    "KYTY_EMPTY_FS_CREATE result=%d module_null=%u code_size=%zu spirv_words=%zu\n",
 	    static_cast<int32_t>(result), module == nullptr ? 1u : 0u, create.codeSize,
 	    create.codeSize / sizeof(uint32_t)));
 	if (result != vk::Result::eSuccess || module == nullptr) {
-		std::printf("Kyty empty fragment shader: module creation failed, off (KYTY_EMPTY_FS, VkResult=%d)\\n",
+		std::printf("Kyty empty fragment shader: module creation failed, off (KYTY_EMPTY_FS, VkResult=%d)\n",
 		            static_cast<int32_t>(result));
 		return;
 	}
@@ -553,9 +553,9 @@ void Configure(vk::Device device, uint32_t vendor_id) {
 	g_stage.module = module;
 	g_stage.pName  = "main";
 	Log::WriteMeshDiagnostic(fmt::sprintf(
-	    "KYTY_EMPTY_FS_READY module_available=1 module=0x%llx mode=%d vendor=0x%x\\n",
+	    "KYTY_EMPTY_FS_READY module_available=1 module=0x%llx mode=%d vendor=0x%x\n",
 	    static_cast<unsigned long long>(ShaderModuleId(module)), mode, vendor_id));
-	std::printf("Kyty empty fragment shader: on for pipelines without a pixel shader (KYTY_EMPTY_FS=%d, vendor 0x%x)\\n",
+	std::printf("Kyty empty fragment shader: on for pipelines without a pixel shader (KYTY_EMPTY_FS=%d, vendor 0x%x)\n",
 	            mode, vendor_id);
 }
 
