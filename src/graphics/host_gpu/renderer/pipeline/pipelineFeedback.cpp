@@ -57,7 +57,7 @@ bool IsMeshFragmentPipeline(const vk::GraphicsPipelineCreateInfo& info) {
 	bool mesh = false;
 	bool fragment = false;
 	for (uint32_t i = 0; i < info.stageCount; i++) {
-		mesh |= info.pStages[i].stage == vk::ShaderStageFlagBits::eMesh;
+		mesh |= static_cast<uint32_t>(info.pStages[i].stage) == 0x00000080u; // VK_SHADER_STAGE_MESH_BIT_EXT
 		fragment |= info.pStages[i].stage == vk::ShaderStageFlagBits::eFragment;
 	}
 	return mesh && fragment;
@@ -68,7 +68,7 @@ bool IsMeshFragmentPipeline(const vk::GraphicsPipelineCreateInfo& info) {
 bool MeshPipelineNoOptimizationEnabled() {
 	static const bool enabled = [] {
 		const char* value = std::getenv("KYTY_MESH_PIPELINE_NOOPT");
-		return value == nullptr || value[0] == '\\0' || std::strcmp(value, "0") != 0;
+		return value == nullptr || value[0] == '\0' || std::strcmp(value, "0") != 0;
 	}();
 	return enabled;
 }
