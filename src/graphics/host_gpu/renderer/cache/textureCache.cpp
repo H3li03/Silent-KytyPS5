@@ -3698,7 +3698,10 @@ bool TextureCache::CopyStencilPlaneToAlias(ImageId target_id) {
 bool TextureCache::StencilStorageShadowEnabled() {
 	static const bool enabled = [] {
 		const char* value = std::getenv("KYTY_STENCIL_STORAGE_SHADOW");
-		return value != nullptr && value[0] == '1';
+		const bool  on    = value != nullptr && value[0] == '1';
+		Log::WriteMeshDiagnostic(fmt::format("KYTY_STENCIL_STORAGE_SHADOW_CONFIG enabled={} env={}\\n",
+		                                     on ? 1 : 0, value != nullptr ? value : "(unset)"));
+		return on;
 	}();
 	return enabled;
 }
