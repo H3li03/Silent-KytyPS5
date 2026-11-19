@@ -179,7 +179,7 @@ void DefineMeshOutputs(EmitterState& state, uint32_t clip_distance_count,
 	if (drop_layer && std::any_of(state.outputs.begin(), state.outputs.end(), [](const auto& output) {
 		    return output.kind == IR::StageOutputKind::Layer;
 	    })) {
-		LOGF("KYTY_MESH_LAYER_DROP shader=0x%016" PRIx64 " source=%s\\n",
+		LOGF("KYTY_MESH_LAYER_DROP shader=0x%016" PRIx64 " source=%s\n",
 		     state.program.shader_hash, global_drop ? "global" : "shader-list");
 	}
 	for (auto& output: state.outputs) {
