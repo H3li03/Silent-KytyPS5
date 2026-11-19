@@ -813,7 +813,11 @@ void EmitSetAttribute(ValueEmitContext& ctx, const IR::Inst& inst) {
 				state.builder.AddFunction(spv::OpStore, blend_output, alpha);
 			}
 		}
-		if (state.program.stage == ShaderType::Pixel && exp.kind == IR::ExportTargetKind::Mrt &&
+		// EXPERIMENTAL AMD diagnostic: bypass the guest-to-host MRT component shuffle.
+		// This is intentionally isolated on experiment/amd-mrt-export-swizzle-bypass.
+		// If the 3D scene regains colour, investigate ColorComponentMapping construction;
+		// otherwise revert this experiment. Do not use as a general compatibility fix.
+		if (false && state.program.stage == ShaderType::Pixel && exp.kind == IR::ExportTargetKind::Mrt &&
 		    exp.index < state.input_info.pixel->target_export_mapping.size()) {
 			const auto mapping = state.input_info.pixel->target_export_mapping[exp.index];
 			if (!mapping.IsIdentity()) {
