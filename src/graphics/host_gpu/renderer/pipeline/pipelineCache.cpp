@@ -3527,7 +3527,9 @@ struct PipelineCache::ProgramCache {
 		// Targeted AMD mesh forensics: preserve the exact SPIR-V words sent to the driver
 		// for the mesh program identified in the crash logs, regardless of graphics-dump settings.
 		if (options.stage == ShaderType::Mesh &&
-		    (options.shader_hash == 0x4e991d9d461f621dull || options.shader_hash == 0x9fc48aa9f987c1a4ull)) {
+		    (options.shader_hash == 0x4e991d9d461f621dull ||
+		     options.shader_hash == 0x9fc48aa9f987c1a4ull ||
+		     options.shader_hash == 0xb482cd3a01a37f0full)) {
 			const auto dump_path = Config::GetShaderLogFolder() /
 			                       fmt::format("amd-mesh-target-{:016x}.spv", options.shader_hash);
 			Common::File::CreateDirectories(dump_path.parent_path());
