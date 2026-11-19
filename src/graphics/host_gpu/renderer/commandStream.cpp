@@ -1559,7 +1559,7 @@ uint64_t HandleBits(vk::QueryPool pool) {
 			static std::atomic_uint32_t diag_count {0};                                               \
 			const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);                  \
 			if (diag_id < 32) {                                                                       \
-				std::printf("KYTY_MESH_ENCODE indirect=%u draws=%u stride=%u offset=%llu\\n", diag_id, \
+				std::printf("KYTY_MESH_ENCODE indirect=%u draws=%u stride=%u offset=%llu\n", diag_id, \
 				            draw_count, stride, static_cast<unsigned long long>(offset));               \
 				std::fflush(stdout);                                                                    \
 			}                                                                                         \
@@ -1582,7 +1582,7 @@ KYTY_STREAM_INDIRECT(drawIndexedIndirect, DrawIndexedIndirect)
 			static std::atomic_uint32_t diag_count {0};                                               \
 			const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);                  \
 			if (diag_id < 32) {                                                                       \
-				std::printf("KYTY_MESH_ENCODE indirect_count=%u max=%u stride=%u offset=%llu\\n", diag_id, \
+				std::printf("KYTY_MESH_ENCODE indirect_count=%u max=%u stride=%u offset=%llu\n", diag_id, \
 				            max_count, stride, static_cast<unsigned long long>(offset));                \
 				std::fflush(stdout);                                                                    \
 			}                                                                                         \
