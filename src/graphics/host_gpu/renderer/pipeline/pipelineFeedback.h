@@ -6,6 +6,7 @@
 #include <array>
 #include <cstdint>
 #include <string>
+#include <span>
 
 namespace Libs::Graphics::PipelineFeedback {
 
@@ -49,7 +50,8 @@ namespace Libs::Graphics::PipelineStats {
 void               SetEnabled(bool on);
 [[nodiscard]] bool Enabled();
 // Every guest shader module, with its stage name and guest hash (FinishPermutation).
-void RegisterModule(vk::ShaderModule module, const char* stage, uint64_t hash);
+void RegisterModule(vk::ShaderModule module, const char* stage, uint64_t hash,
+                    std::span<const uint32_t> spirv = {});
 // Whether any stage of `info` (or `module`) is a selected guest shader.
 [[nodiscard]] bool Selected(const vk::GraphicsPipelineCreateInfo& info);
 [[nodiscard]] bool Selected(vk::ShaderModule module);
