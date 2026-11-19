@@ -42,6 +42,30 @@ uint64_t NowNs() {
 	                                 .count());
 }
 
+bool IsMeshFragmentPipeline(const vk::GraphicsPipelineCreateInfo& info) {
+	if (info.pStages == nullptr) return false;
+	bool mesh = false;
+	bool fragment = false;
+	for (uint32_t i = 0; i < info.stageCount; i++) {
+		mesh |= info.pStages[i].stage == vk::ShaderStageFlagBits::eMesh;
+		fragment |= info.pStages[i].stage == vk::ShaderStageFlagBits::eFragment;
+	}
+	return mesh && fragment;
+}
+
+// AMD's Windows Vulkan compiler has crashed while optimizing Mesh+Fragment pipelines.
+// Keep the guest SPIR-V and all outputs (including BuiltInLayer) unchanged; only disable
+// the driver's optional pipeline optimization. Probe calls stay untouched because they
+// must preserve their cache-only / FAIL_ON_PIPELINE_COMPILE_REQUIRED behavior.
+bool DisableMeshPipelineOptimization(const vk::GraphicsPipelineCreateInfo& info, Path path) {
+	if (path == Path::Probe || !IsMeshFragmentPipeline(info)) return false;
+	static const bool enabled = [] {
+		const char* value = std::getenv("KYTY_MESH_PIPELINE_NOOPT");
+		return value == nullptr || value[0] == '\\0' || std::strcmp(value, "0") != 0;
+	}();
+	return enabled;
+}
+
 void Max(std::atomic<uint64_t>& target, uint64_t value) {
 	auto current = target.load(std::memory_order_relaxed);
 	while (value > current && !target.compare_exchange_weak(current, value, std::memory_order_relaxed)) {
@@ -63,14 +87,23 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	// KYTY_EMPTY_FS: the driver's copy only (the caller keyed the original).
 	EmptyFragment::Storage storage;
 	const auto&            plain_info = EmptyFragment::Apply(original, storage);
+	// Target the AMD crash site: Mesh+Fragment graphics pipelines only. This is a driver
+	// compilation hint; shader semantics and the guest pipeline key remain unchanged.
+	const bool mesh_noopt = DisableMeshPipelineOptimization(plain_info, path);
+	vk::GraphicsPipelineCreateInfo mesh_noopt_info;
+	if (mesh_noopt) {
+		mesh_noopt_info = plain_info;
+		mesh_noopt_info.flags |= vk::PipelineCreateFlagBits::eDisableOptimization;
+	}
+	const auto& driver_info = mesh_noopt ? mesh_noopt_info : plain_info;
 	// KYTY_PIPELINE_STATS: the driver's copy asks for statistics.
 	vk::GraphicsPipelineCreateInfo stats_info;
-	const bool                     stats = PipelineStats::Enabled() && PipelineStats::Selected(plain_info);
+	const bool                     stats = PipelineStats::Enabled() && PipelineStats::Selected(driver_info);
 	if (stats) {
-		stats_info = plain_info;
+		stats_info = driver_info;
 		stats_info.flags |= vk::PipelineCreateFlagBits::eCaptureStatisticsKHR;
 	}
-	const auto& info = stats ? stats_info : plain_info;
+	const auto& info = stats ? stats_info : driver_info;
 	if (!Enabled()) {
 		const auto made = device.createGraphicsPipelines(cache, 1, &info, nullptr, pipeline);
 		if (stats && made == vk::Result::eSuccess && *pipeline != nullptr) {
