@@ -1555,23 +1555,6 @@ uint32_t ValueEmitContext::FirstLane(uint32_t ballot) {
 
 uint32_t ValueEmitContext::Shuffle(const IR::Inst& inst, size_t index, uint32_t lane) {
 	const auto type  = TypeId(state, inst.Arg(index).GetType());
-	// Diagnostic only: a bit in KYTY_AMD_MESH_SHUFFLE_MASK replaces the matching
-	// Mesh-stage Shuffle result (ordinal 0..31) with OpUndef. Bit 0 is the first
-	// Shuffle emitted for this shader. This intentionally changes shader semantics.
-	if (state.program.stage == ShaderType::Mesh) {
-		const uint32_t ordinal = mesh_shuffle_ordinal++;
-		const char* const mask_text = std::getenv("KYTY_AMD_MESH_SHUFFLE_MASK");
-		if (mask_text != nullptr && mask_text[0] != '\\0') {
-			char* end = nullptr;
-			const unsigned long mask = std::strtoul(mask_text, &end, 0);
-			if (end != mask_text && *end == '\\0' && mask <= 0xfffffffful &&
-			    ordinal < 32 && (static_cast<uint32_t>(mask) & (1u << ordinal)) != 0) {
-				const auto undefined = state.builder.AllocateId();
-				state.builder.AddFunction(spv::OpUndef, type, undefined);
-				return undefined;
-			}
-		}
-	}
 	if (state.split_wave) {
 		// The lane may be in the other host subgroup: exchange through workgroup memory.
 		const auto u32   = TypeU32(state);
