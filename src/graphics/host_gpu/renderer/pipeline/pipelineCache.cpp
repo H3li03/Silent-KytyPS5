@@ -545,6 +545,12 @@ public:
 		if (found == m_modules.end() || found->second.doomed) return;
 		found->second.identity = identity;
 		found->second.bindings = bindings;
+		if (const auto indexed = m_by_identity.find(identity); indexed != m_by_identity.end()) {
+			const auto live = m_modules.find(indexed->second);
+			if (live == m_modules.end() || live->second.doomed) {
+				m_by_identity.erase(indexed);
+			}
+		}
 		m_by_identity.try_emplace(identity, found->first);
 	}
 	// {identity, bindings hash} of a published module ({0, 0} if unknown).
@@ -559,10 +565,14 @@ public:
 		std::scoped_lock lock(m_mutex);
 		const auto       found = m_by_identity.find(identity);
 		if (found == m_by_identity.end()) return nullptr;
-		auto& info = m_modules[found->second];
-		if (info.bindings != bindings) return nullptr;
-		info.pins++;
-		return found->second;
+		const auto module = m_modules.find(found->second);
+		if (module == m_modules.end() || module->second.doomed) {
+			m_by_identity.erase(found);
+			return nullptr;
+		}
+		if (module->second.bindings != bindings) return nullptr;
+		module->second.pins++;
+		return module->first;
 	}
 	[[nodiscard]] bool Contains(uint64_t hash) const {
 		std::scoped_lock lock(m_mutex);
@@ -592,8 +602,13 @@ public:
 		std::scoped_lock lock(m_mutex);
 		const auto       found = m_by_hash.find(hash);
 		if (found == m_by_hash.end()) return nullptr;
-		m_modules[found->second].pins++;
-		return found->second;
+		const auto module = m_modules.find(found->second);
+		if (module == m_modules.end() || module->second.doomed) {
+			m_by_hash.erase(found);
+			return nullptr;
+		}
+		module->second.pins++;
+		return module->first;
 	}
 	void Unpin(vk::Device device, vk::ShaderModule module) {
 		{
@@ -612,6 +627,15 @@ public:
 				if (const auto indexed = m_by_identity.find(found->second.identity);
 				    indexed != m_by_identity.end() && indexed->second == found->first) {
 					m_by_identity.erase(indexed);
+					// Another live permutation of the same identity may have been published
+					// while this module owned the index.
+					for (const auto& [other, info]: m_modules) {
+						if (other != found->first && info.identity == found->second.identity &&
+						    !info.doomed) {
+							m_by_identity.emplace(info.identity, other);
+							break;
+						}
+					}
 				}
 				if (const auto indexed = m_by_hash.find(found->second.hash);
 				    indexed != m_by_hash.end() && indexed->second == found->first) {
