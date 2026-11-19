@@ -194,16 +194,27 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 		}
 	}
 	if (add_empty_fragment_test) {
-		const auto& with_empty_fragment = EmptyFragment::Apply(driver_info, add_empty_fragment_storage);
-		if (with_empty_fragment.stageCount == driver_info.stageCount + 1) {
-			selected_driver_info = &with_empty_fragment;
+		const auto empty_module = EmptyFragment::Module();
+		if (empty_module != nullptr && driver_info.pStages != nullptr &&
+		    driver_info.stageCount < empty_fragment_stages.size()) {
+			for (uint32_t i = 0; i < driver_info.stageCount; i++) {
+				empty_fragment_stages[i] = driver_info.pStages[i];
+			}
+			empty_fragment_stages[driver_info.stageCount] = vk::PipelineShaderStageCreateInfo {};
+			empty_fragment_stages[driver_info.stageCount].stage = vk::ShaderStageFlagBits::eFragment;
+			empty_fragment_stages[driver_info.stageCount].module = empty_module;
+			empty_fragment_stages[driver_info.stageCount].pName = "main";
+			empty_fragment_info = driver_info;
+			empty_fragment_info.stageCount = driver_info.stageCount + 1;
+			empty_fragment_info.pStages = empty_fragment_stages.data();
+			selected_driver_info = &empty_fragment_info;
 			Log::WriteMeshDiagnostic(fmt::sprintf(
 			    "KYTY_MESH_DIAG_EMPTY_FRAGMENT_TEST added=1 original_stages=%u new_stages=%u\n",
-			    driver_info.stageCount, with_empty_fragment.stageCount));
+			    driver_info.stageCount, empty_fragment_info.stageCount));
 		} else {
 			Log::WriteMeshDiagnostic(fmt::sprintf(
 			    "KYTY_MESH_DIAG_EMPTY_FRAGMENT_TEST added=0 module_available=%u original_stages=%u\n",
-			    EmptyFragment::Module() != nullptr ? 1u : 0u, driver_info.stageCount));
+			    empty_module != nullptr ? 1u : 0u, driver_info.stageCount));
 		}
 	}
 	// Trace the exact graphics-pipeline call that reaches the AMD Vulkan driver.
