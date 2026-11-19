@@ -110,6 +110,9 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	    std::strcmp(disable_optimization_env, "0") != 0;
 	const bool mesh_fragment_pipeline = IsMeshFragmentPipeline(plain_info);
 	const bool mesh_pipeline_noopt = mesh_fragment_pipeline && MeshPipelineNoOptimizationEnabled();
+	const auto* empty_fragment_test_env = std::getenv("KYTY_MESH_TEST_EMPTY_FRAGMENT");
+	const bool empty_fragment_test = mesh_fragment_pipeline && empty_fragment_test_env != nullptr &&
+	                                 *empty_fragment_test_env != '\0' && std::strcmp(empty_fragment_test_env, "0") != 0;
 	const auto* serialize_mesh_env = std::getenv("KYTY_MESH_PIPELINE_SERIALIZE");
 	const bool serialize_mesh_pipeline = mesh_fragment_pipeline && serialize_mesh_env != nullptr &&
 	                                    *serialize_mesh_env != '\0' && std::strcmp(serialize_mesh_env, "0") != 0;
@@ -125,6 +128,34 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 		unoptimized_info.flags |= vk::PipelineCreateFlagBits::eDisableOptimization;
 	}
 	const auto& driver_info = disable_optimization ? unoptimized_info : plain_info;
+	// Isolation experiment: substitute only the fragment shader with the existing valid empty
+	// fragment module. This is diagnostic-only and intentionally changes color output.
+	std::array<vk::PipelineShaderStageCreateInfo, 8> empty_fragment_stages {};
+	vk::GraphicsPipelineCreateInfo empty_fragment_info {};
+	const vk::GraphicsPipelineCreateInfo* selected_driver_info = &driver_info;
+	if (empty_fragment_test) {
+		const auto empty_module = EmptyFragment::Module();
+		if (empty_module != nullptr && driver_info.pStages != nullptr &&
+		    driver_info.stageCount <= empty_fragment_stages.size()) {
+			bool replaced = false;
+			for (uint32_t i = 0; i < driver_info.stageCount; i++) {
+				empty_fragment_stages[i] = driver_info.pStages[i];
+				if (empty_fragment_stages[i].stage == vk::ShaderStageFlagBits::eFragment) {
+					empty_fragment_stages[i].module = empty_module;
+					empty_fragment_stages[i].pSpecializationInfo = nullptr;
+					replaced = true;
+				}
+			}
+			if (replaced) {
+				empty_fragment_info = driver_info;
+				empty_fragment_info.pStages = empty_fragment_stages.data();
+				selected_driver_info = &empty_fragment_info;
+				Log::WriteMeshDiagnostic("KYTY_MESH_DIAG_EMPTY_FRAGMENT_TEST active=1\\n");
+			}
+		} else {
+			Log::WriteMeshDiagnostic("KYTY_MESH_DIAG_EMPTY_FRAGMENT_TEST active=0 module_unavailable=1\\n");
+		}
+	}
 	// Trace the exact graphics-pipeline call that reaches the AMD Vulkan driver.
 	static std::atomic<uint32_t> trace_sequence {0};
 	const auto trace_create = [&](const vk::GraphicsPipelineCreateInfo& create_info) {
@@ -185,12 +216,12 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	};
 	// KYTY_PIPELINE_STATS: the driver's copy asks for statistics.
 	vk::GraphicsPipelineCreateInfo stats_info;
-	const bool                     stats = PipelineStats::Enabled() && PipelineStats::Selected(driver_info);
+	const bool                     stats = PipelineStats::Enabled() && PipelineStats::Selected(*selected_driver_info);
 	if (stats) {
-		stats_info = driver_info;
+		stats_info = *selected_driver_info;
 		stats_info.flags |= vk::PipelineCreateFlagBits::eCaptureStatisticsKHR;
 	}
-	const auto& info = stats ? stats_info : driver_info;
+	const auto& info = stats ? stats_info : *selected_driver_info;
 	Log::WriteMeshDiagnostic(fmt::sprintf(
 	    "KYTY_MESH_DIAG_PIPELINE_DRIVER_CALL path=%d stages=%u flags=0x%x disable_optimization=%u amd_safe_mode=%u mesh_fragment=%u mesh_noopt=%u mesh_serialize=%u\n",
 	    static_cast<int>(path), info.stageCount, static_cast<uint32_t>(info.flags),
