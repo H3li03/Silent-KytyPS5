@@ -82,16 +82,16 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	const auto trace_create = [&](const vk::GraphicsPipelineCreateInfo& create_info) {
 		const auto id = trace_sequence.fetch_add(1, std::memory_order_relaxed);
 		Log::WriteMeshDiagnostic(fmt::sprintf(
-		    "KYTY_MESH_DIAG_PIPELINE_BEGIN id=%u path=%d stages=%u flags=0x%x\\n",
+		    "KYTY_MESH_DIAG_PIPELINE_BEGIN id=%u path=%d stages=%u flags=0x%x\n",
 		    id, static_cast<int>(path), create_info.stageCount, static_cast<uint32_t>(create_info.flags)));
 		for (uint32_t i = 0; i < create_info.stageCount && create_info.pStages != nullptr; i++) {
 			Log::WriteMeshDiagnostic(fmt::sprintf(
-			    "KYTY_MESH_DIAG_PIPELINE_STAGE id=%u index=%u stage=%u\\n",
+			    "KYTY_MESH_DIAG_PIPELINE_STAGE id=%u index=%u stage=%u\n",
 			    id, i, static_cast<uint32_t>(create_info.pStages[i].stage)));
 		}
 		const auto made = device.createGraphicsPipelines(cache, 1, &create_info, nullptr, pipeline);
 		Log::WriteMeshDiagnostic(fmt::sprintf(
-		    "KYTY_MESH_DIAG_PIPELINE_RETURN id=%u path=%d result=%d pipeline_null=%u\\n",
+		    "KYTY_MESH_DIAG_PIPELINE_RETURN id=%u path=%d result=%d pipeline_null=%u\n",
 		    id, static_cast<int>(path), static_cast<int>(made),
 		    pipeline == nullptr || *pipeline == nullptr ? 1u : 0u));
 		return made;
