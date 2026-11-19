@@ -932,7 +932,8 @@ void EmitSharedMemoryBarrier(EmitterState& state) {
 	// it may sit where other waves of the workgroup do not go, and the AMD driver makes a
 	// workgroup-scope fence in a mesh shader a workgroup barrier, which then never completes.
 	if (state.program.stage == ShaderType::TessellationControl ||
-	    ShaderWorkgroupInput(state.program.stage, state.input_info) == nullptr) {
+	    ShaderWorkgroupInput(state.program.stage, state.input_info) == nullptr ||
+	    GetCodegenOptions().lds_waitcnt_barrier == LdsWaitcntBarrier::Off) {
 		return;
 	}
 	const auto scope = GetCodegenOptions().lds_waitcnt_barrier == LdsWaitcntBarrier::Workgroup
