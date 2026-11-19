@@ -553,8 +553,7 @@ void Configure(vk::Device device, uint32_t vendor_id) {
 	g_stage.module = module;
 	g_stage.pName  = "main";
 	Log::WriteMeshDiagnostic(fmt::sprintf(
-	    "KYTY_EMPTY_FS_READY module_available=1 module=0x%llx mode=%d vendor=0x%x\n",
-	    static_cast<unsigned long long>(ShaderModuleId(module)), mode, vendor_id));
+	    "KYTY_EMPTY_FS_READY module_available=1 mode=%d vendor=0x%x\n", mode, vendor_id));
 	std::printf("Kyty empty fragment shader: on for pipelines without a pixel shader (KYTY_EMPTY_FS=%d, vendor 0x%x)\n",
 	            mode, vendor_id);
 }
