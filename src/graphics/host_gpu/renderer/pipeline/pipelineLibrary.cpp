@@ -111,6 +111,7 @@ bool PipelineLibraryRequested() {
 		// uses monolithic pipelines on this path.
 		const auto* safe = std::getenv("KYTY_AMD_SAFE_PIPELINES");
 		if (safe != nullptr && *safe != '\0' && std::strcmp(safe, "0") != 0) {
+			Log::WriteMeshDiagnostic("KYTY_MESH_DIAG_AMD_SAFE_PROFILE enabled=1 gpl=disabled\n");
 			return false;
 		}
 		const auto* value = std::getenv("KYTY_PIPELINE_LIBRARY");
