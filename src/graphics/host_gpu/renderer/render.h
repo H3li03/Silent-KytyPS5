@@ -24,6 +24,7 @@
 #include "graphics/host_gpu/vulkanCommon.h"
 
 #include <atomic>
+#include <cstdio>
 #include <functional>
 #include <array>
 #include <memory>
@@ -1038,6 +1039,13 @@ public:
 		}
 	}
 	void drawMeshTasksEXT(uint32_t x, uint32_t y, uint32_t z) const {
+		static std::atomic_uint32_t diag_count {0};
+				const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);
+				if (diag_id < 64) {
+					std::printf("KYTY_MESH_DRAW direct=%u groups=(%u,%u,%u)\n", diag_id, x, y, z);
+					std::fflush(stdout);
+				}
+
 		if (m_owner->Encoding()) {
 			m_owner->m_encoder->drawMeshTasksEXT(x, y, z);
 		} else {
@@ -1046,6 +1054,13 @@ public:
 	}
 	void drawMeshTasksIndirectEXT(vk::Buffer buffer, vk::DeviceSize offset, uint32_t draw_count,
 	                              uint32_t stride) const {
+		static std::atomic_uint32_t diag_count {0};
+				const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);
+				if (diag_id < 64) {
+					std::printf("KYTY_MESH_DRAW indirect=%u draw_count=%u stride=%u offset=%llu\n", diag_id, draw_count, stride, static_cast<unsigned long long>(offset));
+					std::fflush(stdout);
+				}
+
 		if (m_owner->Encoding()) {
 			m_owner->m_encoder->drawMeshTasksIndirectEXT(buffer, offset, draw_count, stride);
 		} else {
@@ -1055,6 +1070,13 @@ public:
 	void drawMeshTasksIndirectCountEXT(vk::Buffer buffer, vk::DeviceSize offset,
 	                                   vk::Buffer count_buffer, vk::DeviceSize count_offset,
 	                                   uint32_t max_count, uint32_t stride) const {
+		static std::atomic_uint32_t diag_count {0};
+				const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);
+				if (diag_id < 64) {
+					std::printf("KYTY_MESH_DRAW indirect_count=%u max_count=%u stride=%u offset=%llu count_offset=%llu\n", diag_id, max_count, stride, static_cast<unsigned long long>(offset), static_cast<unsigned long long>(count_offset));
+					std::fflush(stdout);
+				}
+
 		if (m_owner->Encoding()) {
 			m_owner->m_encoder->drawMeshTasksIndirectCountEXT(buffer, offset, count_buffer,
 			                                                  count_offset, max_count, stride);
