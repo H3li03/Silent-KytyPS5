@@ -37,6 +37,20 @@ uint32_t MeshArray(EmitterState& state, spv::StorageClass storage, uint32_t type
 	return state.builder.DefineGlobalVariable(TypePointer(state, storage, array), storage);
 }
 
+// AMD's Windows mesh compiler accepts Layer as a member of a per-primitive interface block,
+// matching glslang's gl_MeshPerPrimitiveEXT declaration. The standalone array form passes
+// spirv-val too, but can crash the driver during graphics-pipeline creation.
+uint32_t MeshLayerArray(EmitterState& state, uint32_t count) {
+	const auto block = state.builder.Type(spv::OpTypeStruct, TypeU32(state));
+	state.builder.AddAnnotation(spv::OpDecorate, block, spv::DecorationBlock);
+	state.builder.AddAnnotation(spv::OpMemberDecorate, block, 0u, spv::DecorationBuiltIn,
+	                            spv::BuiltInLayer);
+	state.builder.AddAnnotation(spv::OpMemberDecorate, block, 0u, spv::DecorationPerPrimitiveEXT);
+	const auto array = state.builder.Type(spv::OpTypeArray, block, ConstantU32(state, count));
+	return state.builder.DefineGlobalVariable(TypePointer(state, spv::StorageClassOutput, array),
+	                                          spv::StorageClassOutput);
+}
+
 uint32_t MeshElement(EmitterState& state, uint32_t variable, spv::StorageClass storage,
                      uint32_t type, uint32_t index) {
 	const auto pointer = state.builder.AllocateId();
@@ -172,8 +186,8 @@ void EmitGeometryOutputDefaults(EmitterState& state) {
 void DefineMeshOutputs(EmitterState& state, uint32_t clip_distance_count,
                        uint32_t cull_distance_count) {
 	const auto& mesh = state.input_info.vertex->mesh;
-	// KYTY_MESH_LAYER: keep guest Layer values in workgroup memory, but omit the Vulkan
-	// BuiltInLayer interface only for globally disabled or explicitly selected shaders.
+	// Keep the optional explicit Layer-drop switches for diagnostics, but emit the
+	// standards-conforming per-primitive interface block by default on every GPU.
 	const bool global_drop = GetHostMeshLayerDrop();
 	const bool drop_layer  = GetHostMeshLayerDrop(state.program.shader_hash);
 	if (drop_layer && std::any_of(state.outputs.begin(), state.outputs.end(), [](const auto& output) {
@@ -189,29 +203,26 @@ void DefineMeshOutputs(EmitterState& state, uint32_t clip_distance_count,
 		auto& variable = clip ? state.clip_distance_variable
 		                 : cull ? state.cull_distance_variable : output.variable_id;
 		if (variable == 0 && !(drop_layer && output.kind == IR::StageOutputKind::Layer)) {
-			const auto element_type = clip || cull
-			                              ? state.builder.Type(spv::OpTypeArray, type,
-			                                                   ConstantU32(state, clip ? clip_distance_count
-			                                                                           : cull_distance_count))
-			                              : type;
-			variable = MeshArray(state, spv::StorageClassOutput, element_type,
-			                     output.kind == IR::StageOutputKind::Layer ? mesh.max_primitives
-			                                                             : mesh.max_vertices);
+			if (output.kind == IR::StageOutputKind::Layer) {
+				variable = MeshLayerArray(state, mesh.max_primitives);
+			} else {
+				const auto element_type = clip || cull
+				                              ? state.builder.Type(spv::OpTypeArray, type,
+				                                                   ConstantU32(state, clip ? clip_distance_count
+				                                                                           : cull_distance_count))
+				                              : type;
+				variable = MeshArray(state, spv::StorageClassOutput, element_type, mesh.max_vertices);
+				if (output.kind == IR::StageOutputKind::Parameter) {
+					state.builder.AddAnnotation(spv::OpDecorate, variable,
+					                            spv::DecorationLocation, output.location);
+				} else {
+					const auto builtin = clip ? spv::BuiltInClipDistance
+					                     : cull ? spv::BuiltInCullDistance : spv::BuiltInPosition;
+					state.builder.AddAnnotation(spv::OpDecorate, variable, spv::DecorationBuiltIn, builtin);
+				}
+			}
 			state.interface_variables.push_back(variable);
 			state.builder.AddName(variable, output.debug_name.c_str());
-			if (output.kind == IR::StageOutputKind::Parameter) {
-				state.builder.AddAnnotation(spv::OpDecorate, variable,
-				                            spv::DecorationLocation, output.location);
-			} else {
-				const auto builtin = clip ? spv::BuiltInClipDistance
-				                     : cull ? spv::BuiltInCullDistance
-				                     : output.kind == IR::StageOutputKind::Layer ? spv::BuiltInLayer
-				                                                                 : spv::BuiltInPosition;
-				state.builder.AddAnnotation(spv::OpDecorate, variable, spv::DecorationBuiltIn, builtin);
-			}
-			if (output.kind == IR::StageOutputKind::Layer) {
-				state.builder.AddAnnotation(spv::OpDecorate, variable, spv::DecorationPerPrimitiveEXT);
-			}
 		}
 		output.variable_id = variable;
 		// Only Layer is read by another invocation, through the primitive's provoking vertex.
@@ -488,8 +499,10 @@ void EmitMeshEntryPoint(EmitterState& state) {
 				const auto layer = MeshLoad(state, output.mesh_data_variable,
 				                            spv::StorageClassWorkgroup, TypeU32(state),
 				                            vertex[state.input_info.vertex->mesh.provoking_vertex]);
-				const auto pointer = MeshElement(state, output.variable_id, spv::StorageClassOutput,
-				                                 TypeU32(state), index);
+				const auto pointer = state.builder.AllocateId();
+				state.builder.AddFunction(
+				    spv::OpAccessChain, TypePointer(state, spv::StorageClassOutput, TypeU32(state)),
+				    pointer, output.variable_id, index, ConstantU32(state, 0));
 				state.builder.AddFunction(spv::OpStore, pointer, layer);
 			}
 		});
