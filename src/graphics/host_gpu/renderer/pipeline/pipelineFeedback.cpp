@@ -15,6 +15,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <xxhash.h>
 
 namespace Libs::Graphics::PipelineFeedback {
 
@@ -282,6 +283,8 @@ const Selection& Settings() {
 struct ModuleName {
 	const char* stage = "";
 	uint64_t    hash  = 0;
+	uint64_t    spirv_hash = 0;
+	size_t      spirv_words = 0;
 };
 
 std::mutex                                        g_mutex;
@@ -314,10 +317,12 @@ bool Enabled() {
 	return g_enabled.load(std::memory_order_relaxed);
 }
 
-void RegisterModule(vk::ShaderModule module, const char* stage, uint64_t hash) {
-	if (!Enabled() || module == nullptr) return;
+void RegisterModule(vk::ShaderModule module, const char* stage, uint64_t hash,
+                    std::span<const uint32_t> spirv) {
+	if (module == nullptr) return;
+	const uint64_t spirv_hash = spirv.empty() ? 0 : XXH3_64bits(spirv.data(), spirv.size_bytes());
 	std::scoped_lock lock(g_mutex);
-	g_modules[static_cast<VkShaderModule>(module)] = {stage, hash};
+	g_modules[static_cast<VkShaderModule>(module)] = {stage, hash, spirv_hash, spirv.size()};
 }
 
 bool Selected(vk::ShaderModule module) {
@@ -341,7 +346,9 @@ std::string Describe(const vk::PipelineShaderStageCreateInfo* stages, uint32_t c
 	for (uint32_t i = 0; i < count && stages != nullptr; i++) {
 		const auto it = g_modules.find(static_cast<VkShaderModule>(stages[i].module));
 		if (it == g_modules.end()) continue;
-		out += fmt::format("{}{}:0x{:016x}", out.empty() ? "" : "|", it->second.stage, it->second.hash);
+		out += fmt::format("{}{}:guest=0x{:016x}:spirv=0x{:016x}:words={}",
+		                   out.empty() ? "" : "|", it->second.stage, it->second.hash,
+		                   it->second.spirv_hash, it->second.spirv_words);
 	}
 	return out;
 }
