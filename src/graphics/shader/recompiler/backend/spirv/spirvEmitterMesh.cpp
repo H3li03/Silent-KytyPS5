@@ -171,8 +171,16 @@ void EmitGeometryOutputDefaults(EmitterState& state) {
 void DefineMeshOutputs(EmitterState& state, uint32_t clip_distance_count,
                        uint32_t cull_distance_count) {
 	const auto& mesh = state.input_info.vertex->mesh;
-	// KYTY_MESH_LAYER (SetHostMeshLayerDrop): no Layer output; the workgroup copy below stays.
-	const bool drop_layer = GetHostMeshLayerDrop();
+	// KYTY_MESH_LAYER: keep guest Layer values in workgroup memory, but omit the Vulkan
+	// BuiltInLayer interface only for globally disabled or explicitly selected shaders.
+	const bool global_drop = GetHostMeshLayerDrop();
+	const bool drop_layer  = GetHostMeshLayerDrop(state.program.shader_hash);
+	if (drop_layer && std::any_of(state.outputs.begin(), state.outputs.end(), [](const auto& output) {
+		    return output.kind == IR::StageOutputKind::Layer;
+	    })) {
+		LOGF("KYTY_MESH_LAYER_DROP shader=0x%016" PRIx64 " source=%s\\n",
+		     state.program.shader_hash, global_drop ? "global" : "shader-list");
+	}
 	for (auto& output: state.outputs) {
 		const auto type = MeshOutputType(state, output.kind);
 		const bool clip = output.kind == IR::StageOutputKind::ClipDistance;
