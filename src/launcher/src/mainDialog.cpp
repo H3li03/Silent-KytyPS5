@@ -612,16 +612,18 @@ static QStringList SetupEmulatorProcess(QProcess* process, const QString& interp
 		environment.insert(QStringLiteral("KYTY_PRESENT_ABS_VBLANK"), QStringLiteral("1"));
 		process->setProcessEnvironment(environment);
 	}
-	// AMD mesh Layer workaround trial: omit BuiltInLayer only for the crashing guest shader.
-	// Other mesh shaders keep their Layer output, preserving layered 3D render targets.
+	// Keep the standards-conforming per-primitive Layer output. Dropping it for selected
+	// shaders can route geometry to the wrong layer of an array render target (black 3D while
+	// 2D overlays remain visible). The SPIR-V Block + PerPrimitiveEXT fix handles AMD's compiler;
+	// explicitly clear any inherited diagnostic drop list so it cannot silently undo that fix.
 	{
 		auto environment = process->processEnvironment();
-		environment.insert(QStringLiteral("KYTY_MESH_LAYER_DROP_SHADERS"), QStringLiteral("0x4e991d9d461f621d,0x9fc48aa9f987c1a4"));
+		environment.insert(QStringLiteral("KYTY_MESH_LAYER_DROP_SHADERS"), QString());
 		environment.insert(QStringLiteral("KYTY_MESH_LAYER"), QStringLiteral("keep"));
 		environment.insert(QStringLiteral("KYTY_PIPELINE_FAST_FIRST"), QStringLiteral("0"));
 		process->setProcessEnvironment(environment);
 		qInfo().noquote() << "AMD mesh Layer workaround:"
-		                  << "KYTY_MESH_LAYER_DROP_SHADERS=" << environment.value(QStringLiteral("KYTY_MESH_LAYER_DROP_SHADERS"))
+		                  << "KYTY_MESH_LAYER_DROP_SHADERS=<disabled>"
 		                  << "KYTY_MESH_LAYER=" << environment.value(QStringLiteral("KYTY_MESH_LAYER"))
 		                  << "KYTY_PIPELINE_FAST_FIRST=" << environment.value(QStringLiteral("KYTY_PIPELINE_FAST_FIRST"));
 	}
