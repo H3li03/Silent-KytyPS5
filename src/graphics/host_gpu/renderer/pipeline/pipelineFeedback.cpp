@@ -84,10 +84,39 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 		Log::WriteMeshDiagnostic(fmt::sprintf(
 		    "KYTY_MESH_DIAG_PIPELINE_BEGIN id=%u path=%d stages=%u flags=0x%x\n",
 		    id, static_cast<int>(path), create_info.stageCount, static_cast<uint32_t>(create_info.flags)));
+		const auto shader_description = PipelineStats::Describe(create_info.pStages, create_info.stageCount);
+		Log::WriteMeshDiagnostic(fmt::sprintf(
+		    "KYTY_MESH_DIAG_PIPELINE_STATE id=%u layout_null=%u renderpass_null=%u subpass=%u "
+		    "dynamic_state_count=%u vertex_input=%u input_assembly=%u rasterization=%u "
+		    "multisample=%u depth_stencil=%u color_blend=%u shader_hashes=%s\\n",
+		    id, create_info.layout == nullptr ? 1u : 0u, create_info.renderPass == nullptr ? 1u : 0u,
+		    create_info.subpass,
+		    create_info.pDynamicState == nullptr ? 0u : create_info.pDynamicState->dynamicStateCount,
+		    create_info.pVertexInputState == nullptr ? 0u : 1u,
+		    create_info.pInputAssemblyState == nullptr ? 0u : 1u,
+		    create_info.pRasterizationState == nullptr ? 0u : 1u,
+		    create_info.pMultisampleState == nullptr ? 0u : 1u,
+		    create_info.pDepthStencilState == nullptr ? 0u : 1u,
+		    create_info.pColorBlendState == nullptr ? 0u : 1u,
+		    shader_description.c_str()));
 		for (uint32_t i = 0; i < create_info.stageCount && create_info.pStages != nullptr; i++) {
+			const auto& stage = create_info.pStages[i];
+			const auto* spec = stage.pSpecializationInfo;
 			Log::WriteMeshDiagnostic(fmt::sprintf(
-			    "KYTY_MESH_DIAG_PIPELINE_STAGE id=%u index=%u stage=%u\n",
-			    id, i, static_cast<uint32_t>(create_info.pStages[i].stage)));
+			    "KYTY_MESH_DIAG_PIPELINE_STAGE id=%u index=%u stage=%u entry=%s "
+			    "specialization_count=%u specialization_data_size=%u pnext=%u\\n",
+			    id, i, static_cast<uint32_t>(stage.stage), stage.pName != nullptr ? stage.pName : "(null)",
+			    spec != nullptr ? spec->mapEntryCount : 0u, spec != nullptr ? spec->dataSize : 0u,
+			    stage.pNext != nullptr ? 1u : 0u));
+			if (spec != nullptr && spec->pMapEntries != nullptr) {
+				for (uint32_t j = 0; j < spec->mapEntryCount; j++) {
+					const auto& entry = spec->pMapEntries[j];
+					Log::WriteMeshDiagnostic(fmt::sprintf(
+					    "KYTY_MESH_DIAG_PIPELINE_SPEC id=%u stage_index=%u entry_index=%u constant_id=%u "
+					    "offset=%u size=%zu\\n",
+					    id, i, j, entry.constantID, entry.offset, entry.size));
+				}
+			}
 		}
 		const auto made = device.createGraphicsPipelines(cache, 1, &create_info, nullptr, pipeline);
 		Log::WriteMeshDiagnostic(fmt::sprintf(
