@@ -3221,6 +3221,9 @@ if(APPLE)
 endif()
 
 install(TARGETS kyty_emulator DESTINATION .)
+# The launcher loads the runtime preset from its own install directory. Keep it in sync
+# with tools/u59-preset.json whenever the source build is installed.
+install(FILES "${CMAKE_SOURCE_DIR}/tools/u59-preset.json" DESTINATION .)
 if(KYTY_BUILD_LAUNCHER)
 	add_subdirectory("${KYTY_SOURCE_DIR}/launcher" "${CMAKE_CURRENT_BINARY_DIR}/launcher")
 
