@@ -38,6 +38,14 @@ std::array<Counters, static_cast<size_t>(Path::Count)> g_counters;
 constexpr std::array<const char*, static_cast<size_t>(Path::Count)> PathNames = {"sync", "builder", "probe",
                                                                                  "replay"};
 
+uint64_t ShaderModuleId(vk::ShaderModule module) {
+	const VkShaderModule raw = static_cast<VkShaderModule>(module);
+	static_assert(sizeof(raw) <= sizeof(uint64_t));
+	uint64_t id = 0;
+	std::memcpy(&id, &raw, sizeof(raw));
+	return id;
+}
+
 uint64_t NowNs() {
 	return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
 	                                 std::chrono::steady_clock::now().time_since_epoch())
@@ -107,7 +115,7 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 			    "KYTY_MESH_DIAG_PIPELINE_STAGE id=%u index=%u stage=%u entry=%s module=0x%llx "
 			    "specialization_count=%u specialization_data_size=%u pnext=%u\n",
 			    id, i, static_cast<uint32_t>(stage.stage), stage.pName != nullptr ? stage.pName : "(null)",
-			    static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(stage.module)),
+			    static_cast<unsigned long long>(ShaderModuleId(stage.module)),
 			    spec != nullptr ? spec->mapEntryCount : 0u, spec != nullptr ? spec->dataSize : 0u,
 			    stage.pNext != nullptr ? 1u : 0u));
 			if (spec != nullptr && spec->pMapEntries != nullptr) {
