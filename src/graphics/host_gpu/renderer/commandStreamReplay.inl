@@ -596,14 +596,14 @@ void Replay(const Header& header, Exec& exec, ReplayState& state, MismatchHandle
 			break;
 		}
 		case Op::Draw: {
+			const auto& p = reader.Get<DrawPacket>();
 			static std::atomic_uint32_t diag_count {0};
 			const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);
 			if (diag_id < 32) {
 				std::printf("KYTY_DRAW_REPLAY direct=%u vertices=%u instances=%u\n", diag_id,
-				            reader.Get<DrawPacket>().vertex_count, reader.Get<DrawPacket>().instance_count);
+				            p.vertex_count, p.instance_count);
 				std::fflush(stdout);
 			}
-			const auto& p = reader.Get<DrawPacket>();
 			if (verify != nullptr) check(VerifyHash::Value(op, p.vertex_count, p.instance_count, p.first_vertex,
 			                        p.first_instance));
 			if (state.record_model.valid) {
@@ -616,14 +616,14 @@ void Replay(const Header& header, Exec& exec, ReplayState& state, MismatchHandle
 			break;
 		}
 		case Op::DrawIndexed: {
+			const auto& p = reader.Get<DrawIndexedPacket>();
 			static std::atomic_uint32_t diag_count {0};
 			const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);
 			if (diag_id < 32) {
 				std::printf("KYTY_DRAW_REPLAY indexed=%u indices=%u instances=%u\n", diag_id,
-				            reader.Get<DrawIndexedPacket>().index_count, reader.Get<DrawIndexedPacket>().instance_count);
+				            p.index_count, p.instance_count);
 				std::fflush(stdout);
 			}
-			const auto& p = reader.Get<DrawIndexedPacket>();
 			if (verify != nullptr) check(VerifyHash::Value(op, p.index_count, p.instance_count, p.first_index,
 			                        static_cast<uint32_t>(p.vertex_offset), p.first_instance));
 			if (state.record_model.valid) {
@@ -639,14 +639,13 @@ void Replay(const Header& header, Exec& exec, ReplayState& state, MismatchHandle
 			break;
 		}
 		case Op::DrawMeshTasks: {
+			const auto& p = reader.Get<Groups3Packet>();
 			static std::atomic_uint32_t diag_count {0};
 			const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);
 			if (diag_id < 32) {
-				const auto& d = reader.Get<Groups3Packet>();
-				std::printf("KYTY_MESH_REPLAY direct=%u groups=(%u,%u,%u)\n", diag_id, d.x, d.y, d.z);
+				std::printf("KYTY_MESH_REPLAY direct=%u groups=(%u,%u,%u)\n", diag_id, p.x, p.y, p.z);
 				std::fflush(stdout);
 			}
-			const auto& p = reader.Get<Groups3Packet>();
 			if (verify != nullptr) check(VerifyHash::Value(op, p.x, p.y, p.z));
 			exec.drawMeshTasksEXT(p.x, p.y, p.z);
 			break;
@@ -654,17 +653,16 @@ void Replay(const Header& header, Exec& exec, ReplayState& state, MismatchHandle
 		case Op::DrawMeshTasksIndirect:
 		case Op::DrawIndirect:
 		case Op::DrawIndexedIndirect: {
+			const auto& p           = reader.Get<IndirectPacket>();
 			if (op == Op::DrawMeshTasksIndirect) {
 				static std::atomic_uint32_t diag_count {0};
 				const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);
 				if (diag_id < 32) {
-					const auto& d = reader.Get<IndirectPacket>();
 					std::printf("KYTY_MESH_REPLAY indirect=%u draws=%u stride=%u offset=%llu\n", diag_id,
-					            d.draw_count, d.stride, static_cast<unsigned long long>(d.offset));
+					            p.draw_count, p.stride, static_cast<unsigned long long>(p.offset));
 					std::fflush(stdout);
 				}
 			}
-			const auto& p           = reader.Get<IndirectPacket>();
 			uint64_t    buffer_bits = 0;
 			const auto  raw         = static_cast<VkBuffer>(p.buffer);
 			std::memcpy(&buffer_bits, &raw, sizeof(buffer_bits));
@@ -681,17 +679,16 @@ void Replay(const Header& header, Exec& exec, ReplayState& state, MismatchHandle
 		case Op::DrawMeshTasksIndirectCount:
 		case Op::DrawIndirectCount:
 		case Op::DrawIndexedIndirectCount: {
+			const auto& p           = reader.Get<IndirectCountPacket>();
 			if (op == Op::DrawMeshTasksIndirectCount) {
 				static std::atomic_uint32_t diag_count {0};
 				const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);
 				if (diag_id < 32) {
-					const auto& d = reader.Get<IndirectCountPacket>();
 					std::printf("KYTY_MESH_REPLAY indirect_count=%u max=%u stride=%u offset=%llu\n", diag_id,
-					            d.max_count, d.stride, static_cast<unsigned long long>(d.offset));
+					            p.max_count, p.stride, static_cast<unsigned long long>(p.offset));
 					std::fflush(stdout);
 				}
 			}
-			const auto& p           = reader.Get<IndirectCountPacket>();
 			uint64_t    buffer_bits = 0;
 			uint64_t    count_bits  = 0;
 			const auto  raw         = static_cast<VkBuffer>(p.buffer);
@@ -817,16 +814,15 @@ void Replay(const Header& header, Exec& exec, ReplayState& state, MismatchHandle
 			break;
 		}
 		case Op::ResolvedDraw: {
+			const auto  start  = reader.Offset();
+			const auto& p      = reader.Get<ResolvedDrawPacket>();
 			static std::atomic_uint32_t diag_count {0};
 			const auto diag_id = diag_count.fetch_add(1, std::memory_order_relaxed);
 			if (diag_id < 32) {
-				const auto& d = reader.Get<ResolvedDrawPacket>();
 				std::printf("KYTY_DRAW_REPLAY resolved=%u flags=0x%x count=%u instances=%u\n", diag_id,
-				            d.flags, d.count, d.instance_count);
+				            p.flags, p.count, p.instance_count);
 				std::fflush(stdout);
 			}
-			const auto  start  = reader.Offset();
-			const auto& p      = reader.Get<ResolvedDrawPacket>();
 			const auto* copies = reader.GetArray<HostCopyPacket>(p.copy_count);
 			const auto* vb     = reader.GetArray<vk::Buffer>(p.vertex_count);
 			const auto* vo     = reader.GetArray<vk::DeviceSize>(p.vertex_count);
