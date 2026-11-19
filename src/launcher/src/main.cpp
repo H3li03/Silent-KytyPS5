@@ -35,7 +35,8 @@ static QString ApplyBundledPreset() {
 	const auto original_environment = QProcessEnvironment::systemEnvironment();
 	QProcessEnvironment diagnostic_overrides;
 	for (const QString& key : original_environment.keys()) {
-		if (key.startsWith(QStringLiteral("KYTY_MESH_"), Qt::CaseInsensitive) ||
+		if (key == QStringLiteral("KYTY_EMPTY_FS") ||
+		    key.startsWith(QStringLiteral("KYTY_MESH_"), Qt::CaseInsensitive) ||
 		    key.startsWith(QStringLiteral("KYTY_AMD_"), Qt::CaseInsensitive) ||
 		    key.startsWith(QStringLiteral("KYTY_PIPELINE_"), Qt::CaseInsensitive)) {
 			diagnostic_overrides.insert(key, original_environment.value(key));
