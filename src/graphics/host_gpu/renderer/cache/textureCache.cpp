@@ -3273,6 +3273,47 @@ ImageId TextureCache::StencilPlaneDepth(uint64_t plane_address) {
 	return found->second;
 }
 
+ImageId TextureCache::StencilPlaneRecord(uint64_t plane_address, uint32_t width, uint32_t height) {
+	std::scoped_lock lock {m_lock};
+	const auto find_record = [&](ImageId depth_id) -> ImageId {
+		const auto* depth = m_slot_images.try_get(depth_id);
+		if (depth == nullptr || !depth->registered || !depth->info.IsDepth() || !depth->info.HasStencil() ||
+		    !SwapsStencilPlanes(*depth) || depth->backing.samples != 1u ||
+		    depth->backing.extent.width != width || depth->backing.extent.height != height) {
+			return {};
+		}
+		for (const auto record_id: depth->stencil_ids) {
+			const auto* record = m_slot_images.try_get(record_id);
+			if (record != nullptr && record->registered && record->depth_id == depth_id &&
+			    record->info.data.address == plane_address) {
+				return record_id;
+			}
+		}
+		return {};
+	};
+	if (const auto found = m_stencil_plane_depth.find(plane_address); found != m_stencil_plane_depth.end()) {
+		if (const auto record = find_record(found->second)) {
+			return record;
+		}
+	}
+	// A plane may have a depth/stencil association before KYTY_PRESERVE_STENCIL has swapped it.
+	// Resolve that record from the image address index as well; requiring m_stencil_plane_depth
+	// here would miss the first storage dispatch and expose the unsupported D32S8 view.
+	for (const auto record_id: FindImagesInRegion(plane_address, 1, false)) {
+		const auto* record = m_slot_images.try_get(record_id);
+		if (record == nullptr || !record->registered || record->info.data.address != plane_address ||
+		    !record->depth_id) {
+			continue;
+		}
+		const auto* depth = m_slot_images.try_get(record->depth_id);
+		if (depth != nullptr && depth->registered && depth->info.IsDepth() && depth->info.HasStencil() &&
+		    SwapsStencilPlanes(*depth) && depth->backing.samples == 1u &&
+		    depth->backing.extent.width == width && depth->backing.extent.height == height) {
+			return record_id;
+		}
+	}
+	return {};
+}
 // KYTY_STENCIL_READ_PARTNER=1 (default off; Erlou93/KytyPS5-Yotei parity): with KYTY_STENCIL_READ_DEPTH,
 // a sampled read of a plane T# that resolves to a plain 1-byte image (no stencil association) binds
 // the plane its depth image swapped away from when it took this one in, instead of this plane.

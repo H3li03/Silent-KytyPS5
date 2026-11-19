@@ -421,6 +421,9 @@ public:
 	bool FillStencilPlaneSaved(CommandBuffer& command, ImageId depth_id, ImageId record_id, uint8_t value,
 	                           const char* what);
 	[[nodiscard]] ImageId     StencilPlaneDepth(uint64_t plane_address);
+	// The associated record for a stencil plane at this address and backing extent, even
+	// when the plane has not been swapped and is not yet in m_stencil_plane_depth.
+	[[nodiscard]] ImageId     StencilPlaneRecord(uint64_t plane_address, uint32_t width, uint32_t height);
 	// KYTY_STENCIL_READ_PARTNER=1 (default off; Erlou93/KytyPS5-Yotei parity, see the .cpp): a sampled
 	// read redirected by KYTY_STENCIL_READ_DEPTH binds the plane the depth image swapped away from
 	// (StencilPlanePartnerRecord: its stencil association record, or none).

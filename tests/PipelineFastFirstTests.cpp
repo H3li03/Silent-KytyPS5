@@ -21,12 +21,14 @@ static int g_failed = 0;
 	} while (0)
 
 int main() {
-	// KYTY_PIPELINE_FAST_FIRST values: a number (0 off), or "nvidia" (on for vendor 0x10de only).
+	// KYTY_PIPELINE_FAST_FIRST values: a number (0 off), or "nvidia"; AMD is hard-disabled.
 	{
 		CHECK(!FastFirstForVendor(nullptr, 0x10deu));
 		CHECK(!FastFirstForVendor("", 0x10deu));
 		CHECK(!FastFirstForVendor("0", 0x10deu));
-		CHECK(FastFirstForVendor("1", 0x1002u));
+		CHECK(!FastFirstForVendor("1", 0x1002u)); // AMD is hard-gated even by stale launcher overrides.
+		CHECK(FastFirstForVendor("1", 0x10deu));
+		CHECK(FastFirstForVendor("1", 0x8086u));
 		CHECK(FastFirstForVendor("nvidia", 0x10deu));
 		CHECK(!FastFirstForVendor("nvidia", 0x1002u));
 		CHECK(!FastFirstForVendor("nvidia", 0x8086u));

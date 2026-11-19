@@ -24,7 +24,7 @@ namespace Libs::Graphics {
 // fast one for later draws. This header holds the Vulkan-free parts (scheduling, accounting,
 // retirement) so they can be tested without a device.
 //
-// Switches: KYTY_PIPELINE_FAST_FIRST=1 enables it (=nvidia: only on NVIDIA GPUs); KYTY_PIPELINE_FAST_FIRST_THREADS (default 2)
+// Switches: KYTY_PIPELINE_FAST_FIRST=1 enables it on non-AMD vendors (=nvidia: only on NVIDIA GPUs); AMD Radeon is hard-disabled; KYTY_PIPELINE_FAST_FIRST_THREADS (default 2)
 // background compile threads; KYTY_PIPELINE_FAST_FIRST_MAX_PENDING (default 1024) cap on queued
 // plus running optimized compiles (beyond it a new pipeline is built optimized, synchronously, as
 // without the switch); KYTY_PIPELINE_FAST_FIRST_RETIRE_S (default 60, 0 = until exit) how long a
@@ -45,12 +45,12 @@ namespace Libs::Graphics {
 	return end != text ? value : default_value;
 }
 
-// KYTY_PIPELINE_FAST_FIRST=nvidia: on only for NVIDIA devices (vendor 0x10de), whose unoptimized
-// pipelines run close to optimized speed. Other drivers may run DISABLE_OPTIMIZATION code far
-// slower (a candidate for the device loss on an AMD Radeon RX 6800S at Astro Bot's title scene,
-// whose first frames all use fast builds), and a dispatch past the OS GPU timeout loses the device.
+// KYTY_PIPELINE_FAST_FIRST=nvidia: on only for NVIDIA devices (vendor 0x10de). Numeric "1"
+// enables other non-AMD vendors too, but AMD Radeon is deliberately gated off: DISABLE_OPTIMIZATION
+// pipelines have caused severe slowdowns/device loss on the RX 6800S path.
 [[nodiscard]] inline bool FastFirstForVendor(const char* value, uint32_t vendor_id) {
-	if (value == nullptr || *value == '\0') return false;
+	// Do not let a stale launcher profile that still supplies "1" re-enable AMD fast-first.
+	if (vendor_id == 0x1002u || value == nullptr || *value == '\0') return false;
 	if (std::strcmp(value, "nvidia") == 0) return vendor_id == 0x10deu;
 	char*      end    = nullptr;
 	const auto number = std::strtoull(value, &end, 10);

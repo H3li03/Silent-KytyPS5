@@ -8780,8 +8780,9 @@ PipelineCache::PipelineCache(GraphicContext& graphics)
 			                 : m_known != nullptr           ? "pipelines known to be cached"
 			                                                : "off");
 		}
-	} else if (EnvU64("KYTY_PIPELINE_FAST_FIRST_COMPUTE", 0) != 0) {
-		// KYTY_PIPELINE_FAST_FIRST_COMPUTE=1 (default off): fast-first for compute pipelines only;
+	} else if (m_graphics.GetPhysicalDeviceProperties().vendorID != 0x1002u &&
+	           EnvU64("KYTY_PIPELINE_FAST_FIRST_COMPUTE", 0) != 0) {
+		// KYTY_PIPELINE_FAST_FIRST_COMPUTE=1 (default off): fast-first for compute pipelines only (AMD gated off);
 		// graphics pipelines keep the prefetch pool. On NVIDIA Miles' unoptimized graphics builds were
 		// the full compile (91ff6ece4), compute ones may not be.
 		m_fast_first               = std::make_unique<FastFirstState>(*this);

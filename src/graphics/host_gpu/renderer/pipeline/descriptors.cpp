@@ -1811,18 +1811,56 @@ void RenderExecutor::ResolveTextureFull(const ShaderRecompiler::IR::ImageResourc
 	// KYTY_STENCIL_READ_DEPTH: a 1-byte colour image at the address of a plane a depth image swaps
 	// to (no stencil association of its own) is read as that depth image's stencil, at its extent.
 	ImageId plane_depth {};
-	if (!stencil_association && !storage && TextureCache::StencilReadDepthEnabled() &&
-	    image->info.bytes_per_block == 1u && !image->info.IsDepth()) {
-		plane_depth = texture_cache.StencilPlaneDepth(image->info.data.address);
-		if (plane_depth) {
-			const auto& depth = texture_cache.GetImage(plane_depth);
-			if (depth.backing.extent.width != image->backing.extent.width ||
-			    depth.backing.extent.height != image->backing.extent.height) {
-				plane_depth = {};
+	ImageId storage_plane_record {};
+	if (!stencil_association && image->info.bytes_per_block == 1u && !image->info.IsDepth()) {
+		if (storage && TextureCache::StencilStorageShadowEnabled()) {
+			storage_plane_record = texture_cache.StencilPlaneRecord(
+			    image->info.data.address, image->backing.extent.width, image->backing.extent.height);
+			if (storage_plane_record) {
+				plane_depth = texture_cache.GetImage(storage_plane_record).depth_id;
+			}
+		} else if (!storage && TextureCache::StencilReadDepthEnabled()) {
+			plane_depth = texture_cache.StencilPlaneDepth(image->info.data.address);
+			if (plane_depth) {
+				const auto& depth = texture_cache.GetImage(plane_depth);
+				if (depth.backing.extent.width != image->backing.extent.width ||
+				    depth.backing.extent.height != image->backing.extent.height) {
+					plane_depth = {};
+				}
 			}
 		}
 	}
-	if (plane_depth) {
+	if (storage_plane_record && plane_depth) {
+		const auto plane_address = texture_cache.GetImage(found).info.data.address;
+		const auto record_id = storage_plane_record;
+		bool shadowed = false;
+		const auto shadow = record_id ? texture_cache.StencilStorageShadow(record_id, shadowed) : ImageId {};
+		if (shadowed && shadow) {
+			id                    = shadow;
+			image                 = &texture_cache.GetImage(id);
+			copy_binding          = true;
+			desc.view_info.format = vk::Format::eR8Uint;
+			desc.view_info.aspect = vk::ImageAspectFlagBits::eColor;
+			static std::atomic<uint32_t> redirected {0};
+			if (redirected.fetch_add(1, std::memory_order_relaxed) < 8) {
+				LOGF("KYTY_STENCIL_STORAGE_SHADOW_ALIAS: plane=0x%012" PRIx64
+				     " depth=0x%012" PRIx64 " shadow=0x%012" PRIx64 "\n",
+				     plane_address, texture_cache.GetImage(plane_depth).info.data.address,
+				     image->info.data.address);
+			}
+		} else {
+			static std::atomic<uint32_t> rejected_alias {0};
+			if (rejected_alias.fetch_add(1, std::memory_order_relaxed) < 16) {
+				LOGF("KYTY_STENCIL_STORAGE_SHADOW_ALIAS_REJECTED: plane=0x%012" PRIx64
+				     " depth=0x%012" PRIx64 " record=%u; binding null storage image\n",
+				     plane_address, texture_cache.GetImage(plane_depth).info.data.address,
+				     record_id ? 1u : 0u);
+			}
+			desc = NullTextureDesc(resource, TextureCache::BindingType::Storage);
+			binding.image_id = texture_cache.FindImage(desc);
+			return;
+		}
+	} else if (plane_depth) {
 		id           = plane_depth;
 		image        = &texture_cache.GetImage(id);
 		copy_binding = true; // not memoized: the plane's depth image is looked up each time
@@ -2005,15 +2043,18 @@ void RenderExecutor::ResolveTextureFull(const ShaderRecompiler::IR::ImageResourc
 	if (storage && image->backing.format == vk::Format::eD32SfloatS8Uint && !copy_binding) {
 		static std::atomic<uint32_t> unshadowed {0};
 		if (unshadowed.fetch_add(1, std::memory_order_relaxed) < 16) {
-			LOGF("KYTY_STENCIL_STORAGE_UNSHADOWED: source=0x%012" PRIx64
+			LOGF("KYTY_STENCIL_STORAGE_UNMAPPED: source=0x%012" PRIx64
 			     " resolved=0x%012" PRIx64 " association=%u info_depth=%u view_format=%d "
-			     "view_aspect=0x%x extent=%ux%u samples=%u layers=%u\\n",
+			     "view_aspect=0x%x extent=%ux%u samples=%u layers=%u; binding null storage image\\n",
 			     texture_cache.GetImage(found).info.data.address, image->info.data.address,
 			     stencil_association ? 1u : 0u, image->info.IsDepth() ? 1u : 0u,
 			     static_cast<int>(desc.view_info.format), static_cast<uint32_t>(desc.view_info.aspect),
 			     image->backing.extent.width, image->backing.extent.height, image->backing.samples,
 			     image->backing.layers);
 		}
+		desc = NullTextureDesc(resource, TextureCache::BindingType::Storage);
+		binding.image_id = texture_cache.FindImage(desc);
+		return;
 	}
 	binding.image_id = id;
 	if (copy_binding) {
