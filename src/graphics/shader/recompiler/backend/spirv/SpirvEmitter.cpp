@@ -970,7 +970,7 @@ std::vector<uint32_t> EmitProgram(const IR::Program& program,
 		// optional module rewrites, so the counts and hash describe the exact emitted SPIR-V.
 		const char* const broadcast_env = std::getenv("KYTY_AMD_MESH_SHUFFLE_BROADCAST");
 		const bool broadcast_enabled = broadcast_env != nullptr && broadcast_env[0] == '1' &&
-		                               broadcast_env[1] == '\\0';
+		                               broadcast_env[1] == '\0';
 		uint32_t shuffle_count = 0;
 		uint32_t broadcast_count = 0;
 		uint64_t module_hash = 14695981039346656037ull;
