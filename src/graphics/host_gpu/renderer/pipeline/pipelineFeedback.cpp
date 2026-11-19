@@ -76,7 +76,7 @@ bool IsMeshFragmentPipeline(const vk::GraphicsPipelineCreateInfo& info) {
 }
 
 // Keep guest SPIR-V and every output (including BuiltInLayer) unchanged. Only skip
-// optional driver optimization on the Mesh+Fragment pipeline that crashes on AMD Windows.
+// optional driver optimization pass for Mesh pipelines on the affected AMD Windows path.
 bool MeshPipelineNoOptimizationEnabled() {
 	static const bool enabled = [] {
 		const char* value = std::getenv("KYTY_MESH_PIPELINE_NOOPT");
@@ -118,7 +118,7 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	    std::strcmp(disable_optimization_env, "0") != 0;
 	const bool mesh_pipeline = IsMeshPipeline(plain_info);
 	const bool mesh_fragment_pipeline = mesh_pipeline && IsMeshFragmentPipeline(plain_info);
-	const bool mesh_pipeline_noopt = mesh_fragment_pipeline && MeshPipelineNoOptimizationEnabled();
+	const bool mesh_pipeline_noopt = mesh_pipeline && MeshPipelineNoOptimizationEnabled();
 	const auto* empty_fragment_test_env = std::getenv("KYTY_MESH_TEST_EMPTY_FRAGMENT");
 	const bool empty_fragment_test = mesh_fragment_pipeline && empty_fragment_test_env != nullptr &&
 	                                 *empty_fragment_test_env != '\0' && std::strcmp(empty_fragment_test_env, "0") != 0;
@@ -129,7 +129,7 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	                                    *serialize_mesh_env != '\0' && std::strcmp(serialize_mesh_env, "0") != 0;
 	// Combined AMD mitigation: scalarized tiler selectors are in gpu_tiler_standard64_3d.inc;
 	// KYTY_AMD_SAFE_PIPELINES disables GPL fast-linking in pipelineLibrary.cpp; and this
-	// targeted rule disables driver optimization for Mesh+Fragment. Guest shader semantics,
+	// targeted rule disables driver optimization for Mesh pipelines. Guest shader semantics,
 	// including Layer, remain untouched. Cache-only probes are excluded.
 	const bool disable_optimization =
 	    path != Path::Probe && (amd_safe_mode || disable_optimization_env_enabled || mesh_pipeline_noopt);
