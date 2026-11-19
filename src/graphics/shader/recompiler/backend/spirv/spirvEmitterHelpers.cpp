@@ -2,6 +2,8 @@
 
 #include "graphics/shader/recompiler/CodegenOptions.h"
 
+#include <cstdlib>
+
 namespace Libs::Graphics::ShaderRecompiler::Spirv::Emitter {
 namespace {
 
@@ -230,7 +232,14 @@ uint32_t ExchangeWaveBallot(EmitterState& state, uint32_t predicate) {
 
 uint32_t ReadHostSubgroupLane(EmitterState& state, uint32_t type, uint32_t value, uint32_t lane) {
 	const auto result = state.builder.AllocateId();
-	state.builder.AddFunction(spv::OpGroupNonUniformShuffle, type, result,
+	// Diagnostic only: compare AMD's handling of Shuffle with Broadcast for mesh shaders.
+	// Broadcast requires a dynamically uniform lane ID, so this is not a production fallback.
+	const char* const broadcast = std::getenv("KYTY_AMD_MESH_SHUFFLE_BROADCAST");
+	const bool use_broadcast = state.program.stage == ShaderType::Mesh && broadcast != nullptr &&
+	                           broadcast[0] == '1' && broadcast[1] == '\0';
+	const auto operation = use_broadcast ? spv::OpGroupNonUniformBroadcast
+	                                     : spv::OpGroupNonUniformShuffle;
+	state.builder.AddFunction(operation, type, result,
 	                          ConstantU32(state, spv::ScopeSubgroup), value,
 	                          EmitBinaryU32(state, spv::OpBitwiseAnd, lane, ConstantU32(state, 31)));
 	return result;
