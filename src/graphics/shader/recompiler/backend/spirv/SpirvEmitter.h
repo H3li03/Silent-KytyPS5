@@ -62,8 +62,9 @@ bool GetHostBufferPairAtomics();
 // in its first layer. The device layer sets this once, before any shader is compiled.
 void SetHostMeshLayerDrop(bool drop);
 bool GetHostMeshLayerDrop();
-// Per-shader AMD workaround: drop Layer only for guest mesh shaders listed in
-// KYTY_MESH_LAYER_DROP_SHADERS (comma/semicolon-separated hexadecimal hashes).
+// Optional per-shader diagnostic override: omit Layer only for guest mesh shaders listed in
+// KYTY_MESH_LAYER_DROP_SHADERS (comma/semicolon-separated hexadecimal hashes). Normal AMD output
+// uses a Block interface member and does not require shader-hash workarounds.
 bool GetHostMeshLayerDrop(uint64_t shader_hash);
 // Coherent (GLC/DLC) buffer loads (GT7 fork 171338e72 + f9586d18c). Under the GLSL450 memory model a
 // Volatile load from a Coherent buffer is visible only together with barriers: NVIDIA (an RTX 3090)
