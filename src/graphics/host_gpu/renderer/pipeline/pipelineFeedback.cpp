@@ -52,6 +52,27 @@ uint64_t NowNs() {
 	                                 .count());
 }
 
+bool IsMeshFragmentPipeline(const vk::GraphicsPipelineCreateInfo& info) {
+	if (info.pStages == nullptr) return false;
+	bool mesh = false;
+	bool fragment = false;
+	for (uint32_t i = 0; i < info.stageCount; i++) {
+		mesh |= info.pStages[i].stage == vk::ShaderStageFlagBits::eMesh;
+		fragment |= info.pStages[i].stage == vk::ShaderStageFlagBits::eFragment;
+	}
+	return mesh && fragment;
+}
+
+// Keep guest SPIR-V and every output (including BuiltInLayer) unchanged. Only skip
+// optional driver optimization on the Mesh+Fragment pipeline that crashes on AMD Windows.
+bool MeshPipelineNoOptimizationEnabled() {
+	static const bool enabled = [] {
+		const char* value = std::getenv("KYTY_MESH_PIPELINE_NOOPT");
+		return value == nullptr || value[0] == '\\0' || std::strcmp(value, "0") != 0;
+	}();
+	return enabled;
+}
+
 void Max(std::atomic<uint64_t>& target, uint64_t value) {
 	auto current = target.load(std::memory_order_relaxed);
 	while (value > current && !target.compare_exchange_weak(current, value, std::memory_order_relaxed)) {
@@ -83,9 +104,14 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	const bool disable_optimization_env_enabled =
 	    disable_optimization_env != nullptr && *disable_optimization_env != '\0' &&
 	    std::strcmp(disable_optimization_env, "0") != 0;
-	// The AMD safe profile combines the proven unoptimized-pipeline workaround with the
-	// scalarized tiler shader and monolithic pipeline path. Keep cache-only probes untouched.
-	const bool disable_optimization = path != Path::Probe && (amd_safe_mode || disable_optimization_env_enabled);
+	const bool mesh_fragment_pipeline = IsMeshFragmentPipeline(plain_info);
+	const bool mesh_pipeline_noopt = mesh_fragment_pipeline && MeshPipelineNoOptimizationEnabled();
+	// Combined AMD mitigation: scalarized tiler selectors are in gpu_tiler_standard64_3d.inc;
+	// KYTY_AMD_SAFE_PIPELINES disables GPL fast-linking in pipelineLibrary.cpp; and this
+	// targeted rule disables driver optimization for Mesh+Fragment. Guest shader semantics,
+	// including Layer, remain untouched. Cache-only probes are excluded.
+	const bool disable_optimization =
+	    path != Path::Probe && (amd_safe_mode || disable_optimization_env_enabled || mesh_pipeline_noopt);
 	vk::GraphicsPipelineCreateInfo unoptimized_info;
 	if (disable_optimization) {
 		unoptimized_info       = plain_info;
@@ -150,9 +176,10 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	}
 	const auto& info = stats ? stats_info : driver_info;
 	Log::WriteMeshDiagnostic(fmt::sprintf(
-	    "KYTY_MESH_DIAG_PIPELINE_DRIVER_CALL path=%d stages=%u flags=0x%x disable_optimization=%u amd_safe_mode=%u\n",
+	    "KYTY_MESH_DIAG_PIPELINE_DRIVER_CALL path=%d stages=%u flags=0x%x disable_optimization=%u amd_safe_mode=%u mesh_fragment=%u mesh_noopt=%u\n",
 	    static_cast<int>(path), info.stageCount, static_cast<uint32_t>(info.flags),
-	    disable_optimization ? 1u : 0u, amd_safe_mode ? 1u : 0u));
+	    disable_optimization ? 1u : 0u, amd_safe_mode ? 1u : 0u,
+	    mesh_fragment_pipeline ? 1u : 0u, mesh_pipeline_noopt ? 1u : 0u));
 	if (!Enabled()) {
 		const auto made = trace_create(info);
 		if (stats && made == vk::Result::eSuccess && *pipeline != nullptr) {
