@@ -612,18 +612,20 @@ static QStringList SetupEmulatorProcess(QProcess* process, const QString& interp
 		environment.insert(QStringLiteral("KYTY_PRESENT_ABS_VBLANK"), QStringLiteral("1"));
 		process->setProcessEnvironment(environment);
 	}
-	// Keep the standards-conforming per-primitive Layer output. Dropping it for selected
-	// shaders can route geometry to the wrong layer of an array render target (black 3D while
-	// 2D overlays remain visible). The SPIR-V Block + PerPrimitiveEXT fix handles AMD's compiler;
-	// explicitly clear any inherited diagnostic drop list so it cannot silently undo that fix.
+	// Revert the experimental AMD Layer override to the last known non-black 3D profile.
+	// Keep the two per-shader Layer drops used by the earlier diagnostic build, and restore
+	// fast-first pipeline creation. The standards-conforming SPIR-V Layer interface remains
+	// in place; this is a runtime routing/profile rollback, not a shader-code rollback.
 	{
 		auto environment = process->processEnvironment();
-		environment.insert(QStringLiteral("KYTY_MESH_LAYER_DROP_SHADERS"), QString());
+		environment.insert(QStringLiteral("KYTY_MESH_LAYER_DROP_SHADERS"),
+		                   QStringLiteral("0x4e991d9d461f621d,0x9fc48aa9f987c1a4"));
 		environment.insert(QStringLiteral("KYTY_MESH_LAYER"), QStringLiteral("keep"));
-		environment.insert(QStringLiteral("KYTY_PIPELINE_FAST_FIRST"), QStringLiteral("0"));
+		environment.insert(QStringLiteral("KYTY_PIPELINE_FAST_FIRST"), QStringLiteral("1"));
 		process->setProcessEnvironment(environment);
-		qInfo().noquote() << "AMD mesh Layer workaround:"
-		                  << "KYTY_MESH_LAYER_DROP_SHADERS=<disabled>"
+		qInfo().noquote() << "AMD mesh Layer recovery profile:"
+		                  << "KYTY_MESH_LAYER_DROP_SHADERS="
+		                  << environment.value(QStringLiteral("KYTY_MESH_LAYER_DROP_SHADERS"))
 		                  << "KYTY_MESH_LAYER=" << environment.value(QStringLiteral("KYTY_MESH_LAYER"))
 		                  << "KYTY_PIPELINE_FAST_FIRST=" << environment.value(QStringLiteral("KYTY_PIPELINE_FAST_FIRST"));
 	}
