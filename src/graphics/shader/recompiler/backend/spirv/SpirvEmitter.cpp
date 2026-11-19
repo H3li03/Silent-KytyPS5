@@ -655,21 +655,21 @@ bool GetHostMeshLayerDrop(uint64_t shader_hash) {
 	static const std::vector<uint64_t> selected = [] {
 		std::vector<uint64_t> hashes;
 		const char* const     text = std::getenv("KYTY_MESH_LAYER_DROP_SHADERS");
-		if (text == nullptr || text[0] == '\\0') {
+		if (text == nullptr || text[0] == '\0') {
 			return hashes;
 		}
 		const char* cursor = text;
-		while (*cursor != '\\0') {
+		while (*cursor != '\0') {
 			while (*cursor == ',' || *cursor == ';' || std::isspace(static_cast<unsigned char>(*cursor))) {
 				++cursor;
 			}
-			if (*cursor == '\\0') {
+			if (*cursor == '\0') {
 				break;
 			}
 			char* end = nullptr;
 			const auto value = std::strtoull(cursor, &end, 0);
 			if (end == cursor) {
-				while (*cursor != '\\0' && *cursor != ',' && *cursor != ';') {
+				while (*cursor != '\0' && *cursor != ',' && *cursor != ';') {
 					++cursor;
 				}
 				continue;
@@ -677,7 +677,7 @@ bool GetHostMeshLayerDrop(uint64_t shader_hash) {
 			while (std::isspace(static_cast<unsigned char>(*end))) {
 				++end;
 			}
-			if (*end == '\\0' || *end == ',' || *end == ';') {
+			if (*end == '\0' || *end == ',' || *end == ';') {
 				hashes.push_back(static_cast<uint64_t>(value));
 			}
 			cursor = end;
