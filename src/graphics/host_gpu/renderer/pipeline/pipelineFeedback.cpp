@@ -88,7 +88,7 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 		Log::WriteMeshDiagnostic(fmt::sprintf(
 		    "KYTY_MESH_DIAG_PIPELINE_STATE id=%u layout_null=%u renderpass_null=%u subpass=%u "
 		    "dynamic_state_count=%u vertex_input=%u input_assembly=%u rasterization=%u "
-		    "multisample=%u depth_stencil=%u color_blend=%u shader_hashes=%s\\n",
+		    "multisample=%u depth_stencil=%u color_blend=%u shader_hashes=%s\n",
 		    id, create_info.layout == nullptr ? 1u : 0u, create_info.renderPass == nullptr ? 1u : 0u,
 		    create_info.subpass,
 		    create_info.pDynamicState == nullptr ? 0u : create_info.pDynamicState->dynamicStateCount,
@@ -104,7 +104,7 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 			const auto* spec = stage.pSpecializationInfo;
 			Log::WriteMeshDiagnostic(fmt::sprintf(
 			    "KYTY_MESH_DIAG_PIPELINE_STAGE id=%u index=%u stage=%u entry=%s "
-			    "specialization_count=%u specialization_data_size=%u pnext=%u\\n",
+			    "specialization_count=%u specialization_data_size=%u pnext=%u\n",
 			    id, i, static_cast<uint32_t>(stage.stage), stage.pName != nullptr ? stage.pName : "(null)",
 			    spec != nullptr ? spec->mapEntryCount : 0u, spec != nullptr ? spec->dataSize : 0u,
 			    stage.pNext != nullptr ? 1u : 0u));
@@ -113,7 +113,7 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 					const auto& entry = spec->pMapEntries[j];
 					Log::WriteMeshDiagnostic(fmt::sprintf(
 					    "KYTY_MESH_DIAG_PIPELINE_SPEC id=%u stage_index=%u entry_index=%u constant_id=%u "
-					    "offset=%u size=%zu\\n",
+					    "offset=%u size=%zu\n",
 					    id, i, j, entry.constantID, entry.offset, entry.size));
 				}
 			}
