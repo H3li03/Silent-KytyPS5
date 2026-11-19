@@ -10909,7 +10909,8 @@ void TestMeshExportStorage() {
       } else if (opcode == spv::OpMemberDecorate && words >= 4u) {
         const uint32_t type = result.spirv[i + 1];
         const uint32_t decoration = result.spirv[i + 3];
-        if (result.spirv[i + 2] == 0u && decoration == static_cast<uint32_t>(spv::DecorationPerPrimitiveEXT)) {
+        if (result.spirv[i + 2] == 0u &&
+            decoration == static_cast<uint32_t>(spv::DecorationPerPrimitiveEXT)) {
           per_primitive_types.insert(type);
         }
         if (result.spirv[i + 2] == 0u && words == 5u &&
