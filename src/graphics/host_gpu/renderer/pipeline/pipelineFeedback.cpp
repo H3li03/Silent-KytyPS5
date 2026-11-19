@@ -1,4 +1,5 @@
 #include "graphics/host_gpu/renderer/pipeline/pipelineFeedback.h"
+#include "common/logging/log.h"
 
 #include <algorithm>
 #include <array>
@@ -63,14 +64,31 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	// KYTY_EMPTY_FS: the driver's copy only (the caller keyed the original).
 	EmptyFragment::Storage storage;
 	const auto&            plain_info = EmptyFragment::Apply(original, storage);
+	// Diagnostic AMD workaround: preserve every shader output (including Layer), but ask the
+	// driver to skip its optimization pass. This is opt-in and deliberately excluded from
+	// cache-only probes, where eFailOnPipelineCompileRequired must retain its original meaning.
+	const auto* disable_optimization_env = std::getenv("KYTY_PIPELINE_DISABLE_OPTIMIZATION");
+	const bool  disable_optimization =
+	    path != Path::Probe && disable_optimization_env != nullptr && *disable_optimization_env != '\0' &&
+	    std::strcmp(disable_optimization_env, "0") != 0;
+	vk::GraphicsPipelineCreateInfo unoptimized_info;
+	if (disable_optimization) {
+		unoptimized_info       = plain_info;
+		unoptimized_info.flags |= vk::PipelineCreateFlagBits::eDisableOptimization;
+	}
+	const auto& driver_info = disable_optimization ? unoptimized_info : plain_info;
 	// KYTY_PIPELINE_STATS: the driver's copy asks for statistics.
 	vk::GraphicsPipelineCreateInfo stats_info;
-	const bool                     stats = PipelineStats::Enabled() && PipelineStats::Selected(plain_info);
+	const bool                     stats = PipelineStats::Enabled() && PipelineStats::Selected(driver_info);
 	if (stats) {
-		stats_info = plain_info;
+		stats_info = driver_info;
 		stats_info.flags |= vk::PipelineCreateFlagBits::eCaptureStatisticsKHR;
 	}
-	const auto& info = stats ? stats_info : plain_info;
+	const auto& info = stats ? stats_info : driver_info;
+	Log::WriteMeshDiagnostic(fmt::sprintf(
+	    "KYTY_MESH_DIAG_PIPELINE_DRIVER_CALL path=%d stages=%u flags=0x%x disable_optimization=%u\\n",
+	    static_cast<int>(path), info.stageCount, static_cast<uint32_t>(info.flags),
+	    disable_optimization ? 1u : 0u));
 	if (!Enabled()) {
 		const auto made = device.createGraphicsPipelines(cache, 1, &info, nullptr, pipeline);
 		if (stats && made == vk::Result::eSuccess && *pipeline != nullptr) {
