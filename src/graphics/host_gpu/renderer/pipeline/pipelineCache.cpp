@@ -682,6 +682,39 @@ private:
 };
 ShaderModuleRegistry g_shader_modules;
 
+// A pipeline snapshot copies VkShaderModule handles, not their Vulkan lifetime. Keep every
+// stage module alive for the complete lifetime of a background pipeline build. If a module
+// starts retiring while pinned, ShaderModuleRegistry defers vkDestroyShaderModule until release.
+class ShaderModulePins {
+public:
+	explicit ShaderModulePins(vk::Device device): m_device(device) {}
+	ShaderModulePins(const ShaderModulePins&)            = delete;
+	ShaderModulePins& operator=(const ShaderModulePins&) = delete;
+	~ShaderModulePins() {
+		for (const auto module: m_modules) {
+			g_shader_modules.Unpin(m_device, module);
+		}
+	}
+	[[nodiscard]] bool Add(vk::ShaderModule module) {
+		if (module == nullptr || !g_shader_modules.PinModule(module)) return false;
+		m_modules.push_back(module);
+		return true;
+	}
+	[[nodiscard]] static std::shared_ptr<ShaderModulePins>
+	Capture(vk::Device device, const vk::PipelineShaderStageCreateInfo* stages, uint32_t count) {
+		if (stages == nullptr || count == 0) return nullptr;
+		auto pins = std::make_shared<ShaderModulePins>(device);
+		for (uint32_t i = 0; i < count; ++i) {
+			if (!pins->Add(stages[i].module)) return nullptr;
+		}
+		return pins;
+	}
+
+private:
+	vk::Device                     m_device;
+	std::vector<vk::ShaderModule>   m_modules;
+};
+
 // Cross-process identity of a graphics pipeline: its create info serialized with module content
 // hashes (GraphicsPipelineSnapshot::Serialize), the layout signature appended, and the XXH3-64 of
 // those words. key 0: no identity (an unhashed module, or a create info the snapshot cannot copy).
@@ -6127,9 +6160,18 @@ struct PipelineCache::LibraryState {
 		const GraphicsPipelineKey*                key    = nullptr; // map node: never erased
 		vk::Pipeline                              linked = nullptr;
 		std::unique_ptr<GraphicsPipelineSnapshot> snapshot;
+		std::shared_ptr<ShaderModulePins>         module_pins;
 	};
 
 	void Enqueue(Job job) {
+		if (job.snapshot != nullptr) {
+			const auto& info = job.snapshot->Info();
+			job.module_pins = ShaderModulePins::Capture(cache.m_graphics.device, info.pStages, info.stageCount);
+			if (job.module_pins == nullptr) {
+				PipelineCacheLog("Pipeline library: skipped background optimization because a shader module could not be pinned");
+				return; // the linked pipeline remains valid and in use
+			}
+		}
 		{
 			std::scoped_lock lock(mutex);
 			if (stopped) return; // after Save(): the linked pipeline stays
@@ -6263,12 +6305,14 @@ struct PipelineCache::FastFirstState {
 	// What a fast build hands to the code that publishes the pipeline.
 	struct GraphicsFast {
 		std::shared_ptr<GraphicsPipelineSnapshot> snapshot;
+		std::shared_ptr<ShaderModulePins>         module_pins;
 		uint64_t                                  fast_ns   = 0;
 		uint64_t                                  key       = 0;     // GraphicsContent::key
 		bool                                      cache_hit = false; // a probe found it cached
 	};
 	struct ComputeFast {
 		std::shared_ptr<ComputeSnapshot> snapshot;
+		std::shared_ptr<ShaderModulePins> module_pins;
 		uint64_t                         fast_ns   = 0;
 		uint64_t                         key       = 0;
 		bool                             cache_hit = false;
@@ -6369,6 +6413,12 @@ struct PipelineCache::FastFirstState {
 			counters.cap_fallbacks.fetch_add(1, std::memory_order_relaxed);
 			return plain();
 		}
+		auto module_pins = ShaderModulePins::Capture(device, info.pStages, info.stageCount);
+		if (module_pins == nullptr) {
+			scheduler.Release();
+			counters.ineligible.fetch_add(1, std::memory_order_relaxed);
+			return plain();
+		}
 		// No driver cache: the unoptimized pipeline would otherwise be stored in it. The
 		// optimized build fills the cache.
 		auto fast_info = info;
@@ -6392,8 +6442,9 @@ struct PipelineCache::FastFirstState {
 			*pipeline = nullptr;
 			return plain();
 		}
-		out.snapshot = std::move(snapshot);
-		out.fast_ns  = CompileClockNs() - begin;
+		out.snapshot     = std::move(snapshot);
+		out.module_pins = std::move(module_pins);
+		out.fast_ns    = CompileClockNs() - begin;
 		if (PaceLog::StallTraceEnabled()) {
 			uint64_t words = 0;
 			for (uint32_t i = 0; i < info.stageCount; i++) words += g_shader_modules.WordsOf(info.pStages[i].module);
@@ -6444,6 +6495,12 @@ struct PipelineCache::FastFirstState {
 			counters.cap_fallbacks.fetch_add(1, std::memory_order_relaxed);
 			return plain();
 		}
+		auto module_pins = ShaderModulePins::Capture(device, &info.stage, 1);
+		if (module_pins == nullptr) {
+			scheduler.Release();
+			counters.ineligible.fetch_add(1, std::memory_order_relaxed);
+			return plain();
+		}
 		auto fast_info = info;
 		fast_info.flags |= vk::PipelineCreateFlagBits::eDisableOptimization;
 		const auto                  outer = Common::CrashContext::Current();
@@ -6459,8 +6516,9 @@ struct PipelineCache::FastFirstState {
 			*pipeline = nullptr;
 			return plain();
 		}
-		out.snapshot = std::move(snapshot);
-		out.fast_ns  = CompileClockNs() - begin;
+		out.snapshot     = std::move(snapshot);
+		out.module_pins = std::move(module_pins);
+		out.fast_ns    = CompileClockNs() - begin;
 		PaceLog::NoteStall(begin, begin + out.fast_ns, PaceLog::StallFastBuild, outer.a,
 		                   static_cast<int>(g_shader_modules.WordsOf(info.stage.module)),
 		                   "unoptimized compute pipeline build");
@@ -6474,10 +6532,12 @@ struct PipelineCache::FastFirstState {
 	// reserved by the fast build.
 	void EnqueueGraphics(const GraphicsPipelineKey* key, vk::Pipeline fast, GraphicsFast& in,
 	                     uint64_t vs_hash, uint64_t ps_hash) {
-		const auto fast_ns = in.fast_ns;
-		const auto known   = in.key;
+		const auto fast_ns     = in.fast_ns;
+		const auto known       = in.key;
+		const auto module_pins = std::move(in.module_pins);
 		scheduler.Submit(
-		    [this, key, fast, fast_ns, known, vs_hash, ps_hash, snapshot = std::move(in.snapshot)] {
+		    [this, key, fast, fast_ns, known, vs_hash, ps_hash, snapshot = std::move(in.snapshot), module_pins] {
+			    (void)module_pins;
 			    Common::CrashContext::Scope note("graphics pipeline optimized build (VS, PS)", vs_hash,
 			                                     ps_hash);
 			    LOGF("PipelineTrace: graphics optimized build begin VS=0x%016" PRIx64
@@ -6490,17 +6550,25 @@ struct PipelineCache::FastFirstState {
 			         vs_hash, ps_hash);
 			    Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_MESH_DIAG_PIPELINE graphics_optimized_done VS=0x%016" PRIx64 " PS=0x%016" PRIx64 "\n", vs_hash, ps_hash));
 		    },
-		    [this] { counters.optimize_skipped.fetch_add(1, std::memory_order_relaxed); });
+		    [this, module_pins] {
+			    (void)module_pins;
+			    counters.optimize_skipped.fetch_add(1, std::memory_order_relaxed);
+		    });
 	}
 	void EnqueueCompute(uint64_t id, vk::Pipeline fast, ComputeFast& in, uint64_t cs_hash) {
-		const auto fast_ns = in.fast_ns;
-		const auto known   = in.key;
+		const auto fast_ns     = in.fast_ns;
+		const auto known       = in.key;
+		const auto module_pins = std::move(in.module_pins);
 		scheduler.Submit(
-		    [this, id, fast, fast_ns, known, cs_hash, snapshot = std::move(in.snapshot)] {
+		    [this, id, fast, fast_ns, known, cs_hash, snapshot = std::move(in.snapshot), module_pins] {
+			    (void)module_pins;
 			    Common::CrashContext::Scope note("compute pipeline optimized build (CS)", cs_hash);
 			    OptimizeCompute(id, fast, fast_ns, known, *snapshot);
 		    },
-		    [this] { counters.optimize_skipped.fetch_add(1, std::memory_order_relaxed); });
+		    [this, module_pins] {
+			    (void)module_pins;
+			    counters.optimize_skipped.fetch_add(1, std::memory_order_relaxed);
+		    });
 	}
 
 	static void NameThread() {
