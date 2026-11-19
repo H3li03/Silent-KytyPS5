@@ -649,17 +649,8 @@ bool GetHostMeshLayerDrop(uint64_t shader_hash) {
 	if (GetHostMeshLayerDrop()) {
 		return true;
 	}
-	// AMD Windows' mesh pipeline compiler is known to crash while creating a pipeline for this
-	// guest shader when its standalone PerPrimitiveEXT BuiltInLayer output is present. Keep the
-	// guest Layer values in workgroup memory (the mesh emitter already does that) but omit only
-	// this shader's Vulkan Layer interface. This is automatic: it must not depend on a launch
-	// environment variable, and changing this code invalidates the persistent codegen cache.
-	constexpr uint64_t kAmdMeshLayerCrashShader0 = 0xb482cd3a01a37f0full;
-	constexpr uint64_t kAmdMeshLayerCrashShader1 = 0x76db3753289971f0ull;
-	if (shader_hash == kAmdMeshLayerCrashShader0 || shader_hash == kAmdMeshLayerCrashShader1) {
-		return true;
-	}
-	// Other shaders may still be selected explicitly for diagnosis. Do not drop Layer globally:
+	// Explicit per-shader drop remains available for diagnosis only. The normal AMD
+	// path now emits Layer through a Block interface member, so no game shader is blacklisted.
 	// titles rendering to array images can depend on it for correct layer routing.
 	static const std::vector<uint64_t> selected = [] {
 		std::vector<uint64_t> hashes;
