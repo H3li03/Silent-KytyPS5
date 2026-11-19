@@ -128,7 +128,7 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	    "original_fragment=%u mesh_noopt=%u add_empty_requested=%u\n",
 	    mesh_pipeline ? 1u : 0u, original.stageCount, plain_info.stageCount,
 	    mesh_fragment_pipeline ? 1u : 0u, mesh_pipeline_noopt ? 1u : 0u,
-	    add_empty_fragment_env != nullptr && *add_empty_fragment_env != '\\0' &&
+	    add_empty_fragment_env != nullptr && *add_empty_fragment_env != '\0' &&
 	            std::strcmp(add_empty_fragment_env, "0") != 0
 	        ? 1u
 	        : 0u));
