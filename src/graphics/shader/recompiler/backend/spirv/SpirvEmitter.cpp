@@ -649,9 +649,17 @@ bool GetHostMeshLayerDrop(uint64_t shader_hash) {
 	if (GetHostMeshLayerDrop()) {
 		return true;
 	}
-	// This is deliberately a per-shader list: globally dropping Layer can misroute geometry
-	// when a title renders to array images. The selected shader's codegen key includes this
-	// decision in PipelineCache::BuildKey, so both in-memory and disk permutations are distinct.
+	// AMD Windows' mesh pipeline compiler is known to crash while creating a pipeline for this
+	// guest shader when its standalone PerPrimitiveEXT BuiltInLayer output is present. Keep the
+	// guest Layer values in workgroup memory (the mesh emitter already does that) but omit only
+	// this shader's Vulkan Layer interface. This is automatic: it must not depend on a launch
+	// environment variable, and changing this code invalidates the persistent codegen cache.
+	constexpr uint64_t kAmdMeshLayerCrashShader = 0xb482cd3a01a37f0full;
+	if (shader_hash == kAmdMeshLayerCrashShader) {
+		return true;
+	}
+	// Other shaders may still be selected explicitly for diagnosis. Do not drop Layer globally:
+	// titles rendering to array images can depend on it for correct layer routing.
 	static const std::vector<uint64_t> selected = [] {
 		std::vector<uint64_t> hashes;
 		const char* const     text = std::getenv("KYTY_MESH_LAYER_DROP_SHADERS");
