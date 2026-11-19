@@ -35,9 +35,10 @@ struct Counters {
 };
 
 std::array<Counters, static_cast<size_t>(Path::Count)> g_counters;
-// Some AMD Windows driver builds crash when mesh pipelines are compiled concurrently.
-// Keep this opt-in so other vendors retain parallel pipeline compilation.
-std::mutex g_mesh_pipeline_create_mutex;
+// Diagnostic serialization for graphics-pipeline driver calls. The AMD crash log shows
+// non-Mesh pipeline creation overlapping a serialized Mesh compile, so the global experiment
+// must cover every graphics pipeline routed through this wrapper.
+std::mutex g_graphics_pipeline_create_mutex;
 
 constexpr std::array<const char*, static_cast<size_t>(Path::Count)> PathNames = {"sync", "builder", "probe",
                                                                                  "replay"};
@@ -123,10 +124,14 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	const bool empty_fragment_test = mesh_fragment_pipeline && empty_fragment_test_env != nullptr &&
 	                                 *empty_fragment_test_env != '\0' && std::strcmp(empty_fragment_test_env, "0") != 0;
 	const auto* serialize_mesh_env = std::getenv("KYTY_MESH_PIPELINE_SERIALIZE");
-	// Serialize Mesh-only as well as Mesh+Fragment pipeline creation: both paths enter the same
-	// AMD mesh compiler, and the observed RX 6900 XT crash occurs on Mesh-only pipelines too.
+	// Mesh-only and Mesh+Fragment pipelines share the AMD mesh compiler.
 	const bool serialize_mesh_pipeline = mesh_pipeline && serialize_mesh_env != nullptr &&
 	                                    *serialize_mesh_env != '\0' && std::strcmp(serialize_mesh_env, "0") != 0;
+	// Broader race-isolation experiment: serialize every graphics-pipeline driver call,
+	// including non-Mesh pipelines that may otherwise overlap a Mesh compilation.
+	const auto* serialize_all_env = std::getenv("KYTY_GRAPHICS_PIPELINE_SERIALIZE");
+	const bool serialize_all_pipeline = serialize_all_env != nullptr && *serialize_all_env != '\0' &&
+	                                    std::strcmp(serialize_all_env, "0") != 0;
 	// Combined AMD mitigation: scalarized tiler selectors are in gpu_tiler_standard64_3d.inc;
 	// KYTY_AMD_SAFE_PIPELINES disables GPL fast-linking in pipelineLibrary.cpp; and this
 	// targeted rule disables driver optimization for Mesh pipelines. Guest shader semantics,
@@ -209,14 +214,16 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 				}
 			}
 		}
-		std::unique_lock<std::mutex> mesh_create_lock(g_mesh_pipeline_create_mutex, std::defer_lock);
-		if (serialize_mesh_pipeline) {
-			Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_MESH_DIAG_PIPELINE_SERIALIZE_WAIT id=%u\n", id));
-			mesh_create_lock.lock();
-			Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_MESH_DIAG_PIPELINE_SERIALIZE_LOCKED id=%u\n", id));
+		std::unique_lock<std::mutex> pipeline_create_lock(g_graphics_pipeline_create_mutex, std::defer_lock);
+		if (serialize_mesh_pipeline || serialize_all_pipeline) {
+			Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_MESH_DIAG_PIPELINE_SERIALIZE_WAIT id=%u scope=%s\n", id,
+			                                      serialize_all_pipeline ? "all" : "mesh"));
+			pipeline_create_lock.lock();
+			Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_MESH_DIAG_PIPELINE_SERIALIZE_LOCKED id=%u scope=%s\n", id,
+			                                      serialize_all_pipeline ? "all" : "mesh"));
 		}
 		const auto made = device.createGraphicsPipelines(cache, 1, &create_info, nullptr, pipeline);
-		if (serialize_mesh_pipeline) {
+		if (serialize_mesh_pipeline || serialize_all_pipeline) {
 			Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_MESH_DIAG_PIPELINE_SERIALIZE_RETURN id=%u result=%d\n", id, static_cast<int>(made)));
 		}
 		Log::WriteMeshDiagnostic(fmt::sprintf(
@@ -234,11 +241,11 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	}
 	const auto& info = stats ? stats_info : *selected_driver_info;
 	Log::WriteMeshDiagnostic(fmt::sprintf(
-	    "KYTY_MESH_DIAG_PIPELINE_DRIVER_CALL path=%d stages=%u flags=0x%x disable_optimization=%u amd_safe_mode=%u mesh_fragment=%u mesh_noopt=%u mesh_serialize=%u\n",
+	    "KYTY_MESH_DIAG_PIPELINE_DRIVER_CALL path=%d stages=%u flags=0x%x disable_optimization=%u amd_safe_mode=%u mesh_fragment=%u mesh_noopt=%u mesh_serialize=%u all_serialize=%u\n",
 	    static_cast<int>(path), info.stageCount, static_cast<uint32_t>(info.flags),
 	    disable_optimization ? 1u : 0u, amd_safe_mode ? 1u : 0u,
 	    mesh_fragment_pipeline ? 1u : 0u, mesh_pipeline_noopt ? 1u : 0u,
-	    serialize_mesh_pipeline ? 1u : 0u));
+	    serialize_mesh_pipeline ? 1u : 0u, serialize_all_pipeline ? 1u : 0u));
 	if (!Enabled()) {
 		const auto made = trace_create(info);
 		if (stats && made == vk::Result::eSuccess && *pipeline != nullptr) {
