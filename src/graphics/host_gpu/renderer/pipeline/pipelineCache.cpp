@@ -6323,8 +6323,6 @@ struct PipelineCache::FastFirstState {
 		Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_MESH_DIAG_PIPELINE graphics_unoptimized_begin VS=0x%016" PRIx64 " PS=0x%016" PRIx64 "\n", outer.a, outer.b));
 		const auto begin  = CompileClockNs();
 		EmptyFragment::Storage empty_fs; // KYTY_EMPTY_FS: the driver's copy only
-		const auto result = device.createGraphicsPipelines(nullptr, 1, &EmptyFragment::Apply(fast_info, empty_fs),
-		                                                   nullptr, pipeline);
 		Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_MESH_DIAG_PIPELINE graphics_unoptimized_call VS=0x%016" PRIx64 " PS=0x%016" PRIx64 "\n", outer.a, outer.b));
 		const auto result = device.createGraphicsPipelines(nullptr, 1, &EmptyFragment::Apply(fast_info, empty_fs),
 		                                                   nullptr, pipeline);
@@ -6393,7 +6391,6 @@ struct PipelineCache::FastFirstState {
 		const auto                  outer = Common::CrashContext::Current();
 		Common::CrashContext::Scope note("compute pipeline unoptimized build (CS)", outer.a);
 		const auto begin  = CompileClockNs();
-		const auto result = device.createComputePipelines(nullptr, 1, &fast_info, nullptr, pipeline);
 		Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_MESH_DIAG_PIPELINE compute_unoptimized_call CS=0x%016" PRIx64 "\n", outer.a));
 		const auto result = device.createComputePipelines(nullptr, 1, &fast_info, nullptr, pipeline);
 		Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_MESH_DIAG_PIPELINE compute_unoptimized_return result=%d CS=0x%016" PRIx64 "\n", static_cast<int>(result), outer.a));
@@ -6428,12 +6425,12 @@ struct PipelineCache::FastFirstState {
 			    LOGF("PipelineTrace: graphics optimized build begin VS=0x%016" PRIx64
 			         " PS=0x%016" PRIx64 "\n",
 			         vs_hash, ps_hash);
-		Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_MESH_DIAG_PIPELINE graphics_optimized_begin VS=0x%016" PRIx64 " PS=0x%016" PRIx64 "\n", vs_hash, ps_hash));
+			    Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_MESH_DIAG_PIPELINE graphics_optimized_begin VS=0x%016" PRIx64 " PS=0x%016" PRIx64 "\n", vs_hash, ps_hash));
 			    OptimizeGraphics(key, fast, fast_ns, known, *snapshot);
 			    LOGF("PipelineTrace: graphics optimized build done VS=0x%016" PRIx64
 			         " PS=0x%016" PRIx64 "\n",
 			         vs_hash, ps_hash);
-		Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_MESH_DIAG_PIPELINE graphics_optimized_done VS=0x%016" PRIx64 " PS=0x%016" PRIx64 "\n", vs_hash, ps_hash));
+			    Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_MESH_DIAG_PIPELINE graphics_optimized_done VS=0x%016" PRIx64 " PS=0x%016" PRIx64 "\n", vs_hash, ps_hash));
 		    },
 		    [this] { counters.optimize_skipped.fetch_add(1, std::memory_order_relaxed); });
 	}
