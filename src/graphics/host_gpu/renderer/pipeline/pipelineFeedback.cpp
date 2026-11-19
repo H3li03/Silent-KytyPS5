@@ -35,8 +35,8 @@ struct Counters {
 };
 
 std::array<Counters, static_cast<size_t>(Path::Count)> g_counters;
-// Some AMD Windows driver builds crash when the same mesh shader is compiled concurrently
-// for separate graphics pipelines. This opt-in diagnostic serializes only Mesh+Fragment creates.
+// Some AMD Windows driver builds crash when mesh pipelines are compiled concurrently.
+// Keep this opt-in so other vendors retain parallel pipeline compilation.
 std::mutex g_mesh_pipeline_create_mutex;
 
 constexpr std::array<const char*, static_cast<size_t>(Path::Count)> PathNames = {"sync", "builder", "probe",
@@ -56,15 +56,23 @@ uint64_t NowNs() {
 	                                 .count());
 }
 
+bool IsMeshPipeline(const vk::GraphicsPipelineCreateInfo& info) {
+	if (info.pStages == nullptr) return false;
+	for (uint32_t i = 0; i < info.stageCount; i++) {
+		if (static_cast<uint32_t>(info.pStages[i].stage) == 0x00000080u) { // VK_SHADER_STAGE_MESH_BIT_EXT
+			return true;
+		}
+	}
+	return false;
+}
+
 bool IsMeshFragmentPipeline(const vk::GraphicsPipelineCreateInfo& info) {
 	if (info.pStages == nullptr) return false;
-	bool mesh = false;
 	bool fragment = false;
 	for (uint32_t i = 0; i < info.stageCount; i++) {
-		mesh |= static_cast<uint32_t>(info.pStages[i].stage) == 0x00000080u; // VK_SHADER_STAGE_MESH_BIT_EXT
 		fragment |= info.pStages[i].stage == vk::ShaderStageFlagBits::eFragment;
 	}
-	return mesh && fragment;
+	return IsMeshPipeline(info) && fragment;
 }
 
 // Keep guest SPIR-V and every output (including BuiltInLayer) unchanged. Only skip
@@ -108,13 +116,16 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	const bool disable_optimization_env_enabled =
 	    disable_optimization_env != nullptr && *disable_optimization_env != '\0' &&
 	    std::strcmp(disable_optimization_env, "0") != 0;
-	const bool mesh_fragment_pipeline = IsMeshFragmentPipeline(plain_info);
+	const bool mesh_pipeline = IsMeshPipeline(plain_info);
+	const bool mesh_fragment_pipeline = mesh_pipeline && IsMeshFragmentPipeline(plain_info);
 	const bool mesh_pipeline_noopt = mesh_fragment_pipeline && MeshPipelineNoOptimizationEnabled();
 	const auto* empty_fragment_test_env = std::getenv("KYTY_MESH_TEST_EMPTY_FRAGMENT");
 	const bool empty_fragment_test = mesh_fragment_pipeline && empty_fragment_test_env != nullptr &&
 	                                 *empty_fragment_test_env != '\0' && std::strcmp(empty_fragment_test_env, "0") != 0;
 	const auto* serialize_mesh_env = std::getenv("KYTY_MESH_PIPELINE_SERIALIZE");
-	const bool serialize_mesh_pipeline = mesh_fragment_pipeline && serialize_mesh_env != nullptr &&
+	// Serialize Mesh-only as well as Mesh+Fragment pipeline creation: both paths enter the same
+	// AMD mesh compiler, and the observed RX 6900 XT crash occurs on Mesh-only pipelines too.
+	const bool serialize_mesh_pipeline = mesh_pipeline && serialize_mesh_env != nullptr &&
 	                                    *serialize_mesh_env != '\0' && std::strcmp(serialize_mesh_env, "0") != 0;
 	// Combined AMD mitigation: scalarized tiler selectors are in gpu_tiler_standard64_3d.inc;
 	// KYTY_AMD_SAFE_PIPELINES disables GPL fast-linking in pipelineLibrary.cpp; and this
