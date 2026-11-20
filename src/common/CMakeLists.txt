@@ -19,6 +19,11 @@ add_library(common STATIC ${common_src} ${common_headers})
 if(LINUX)
 	set_property(SOURCE profiler.cpp hangWatchdog.cpp APPEND PROPERTY COMPILE_OPTIONS -fexceptions)
 endif()
+# Windows diagnostics and event helpers use C++ exception handling.
+if(WIN32)
+	set_property(SOURCE compileWatch.cpp kytyEvents.cpp hangWatchdog.cpp profiler.cpp u59Preset.cpp
+		APPEND PROPERTY COMPILE_OPTIONS /EHsc)
+endif()
 set(localization_dir "${PROJECT_SOURCE_DIR}/assets/localization")
 file(GLOB localization_catalogs CONFIGURE_DEPENDS "${localization_dir}/*.json")
 set(localization_data "${CMAKE_CURRENT_BINARY_DIR}/localizationData.h")
