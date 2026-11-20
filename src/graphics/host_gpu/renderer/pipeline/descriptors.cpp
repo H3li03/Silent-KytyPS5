@@ -5951,7 +5951,7 @@ void RenderExecutor::RebindImages(PreparedBindings& prepared) {
 				}
 				binding.desc = NullTextureDesc(program.info.images[i], TextureCache::BindingType::Storage);
 				binding.image_id = texture_cache.FindImage(binding.desc);
-				binding.image_view = {};
+				binding.image_view = nullptr;
 			}
 		}
 		binding.mip_views.clear();
