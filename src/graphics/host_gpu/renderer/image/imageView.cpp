@@ -325,7 +325,7 @@ vk::ImageView Image::FindView(const ImageViewInfo& view_info) {
 	// Reject the invalid view before vkCreateImageView; descriptor resolution must
 	// redirect writable stencil planes to the R8 shadow or a null storage binding.
 	if (is_storage && image.format == vk::Format::eD32SfloatS8Uint &&
-	    !(image.usage & vk::ImageUsageFlagBits::eStorage)) {
+	    !static_cast<bool>(image.usage & vk::ImageUsageFlagBits::eStorage)) {
 		static std::atomic<uint32_t> rejected {0};
 		if (rejected.fetch_add(1, std::memory_order_relaxed) < 16) {
 			std::fprintf(stderr,
