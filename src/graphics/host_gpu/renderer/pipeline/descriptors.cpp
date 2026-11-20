@@ -5936,6 +5936,24 @@ void RenderExecutor::RebindImages(PreparedBindings& prepared) {
 	};
 	const auto acquire_view = [&](uint32_t i) {
 		auto& binding = images[i];
+		// ResolveTexture may return a previously memoized image binding. Check the
+		// actual Vulkan backing before acquiring (or reusing) its storage view.
+		// A D32S8 image without STORAGE usage cannot be made writable by a view.
+		if (binding.desc.type == TextureCache::BindingType::Storage) {
+			const auto& backing = texture_cache.GetImage(binding.image_id).backing;
+			if (backing.format == vk::Format::eD32SfloatS8Uint &&
+			    !static_cast<bool>(backing.usage & vk::ImageUsageFlagBits::eStorage)) {
+				static std::atomic<uint32_t> rejected {0};
+				if (rejected.fetch_add(1, std::memory_order_relaxed) < 16) {
+					LOGF("KYTY_AMD_STORAGE_DESCRIPTOR_REJECTED: shader=%016" PRIx64
+					     " image_index=%u format=D32S8; binding null storage image\\n",
+					     program.shader_hash, i);
+				}
+				binding.desc = NullTextureDesc(program.info.images[i], TextureCache::BindingType::Storage);
+				binding.image_id = texture_cache.FindImage(binding.desc);
+				binding.image_view = {};
+			}
+		}
 		binding.mip_views.clear();
 		const auto& resource = program.info.images[i];
 		if (resource.mip_mode == ShaderRecompiler::IR::ImageMipMode::Dynamic) {
