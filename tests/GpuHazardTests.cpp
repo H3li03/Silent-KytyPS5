@@ -120,6 +120,21 @@ static void TestCapacity() {
 	Check(!t.Poisoned() && t.Empty(), "reset clears the poison");
 }
 
+static void TestMalformedRanges() {
+	Tracker t;
+	AddOne(t, G(0x1000, 0x2000, true));
+	Check(CheckOne(t, G(0x3000, 0x3000, false)) == Verdict::Raw,
+	      "empty access range must not bypass a hazard");
+	Check(CheckOne(t, G(0x4000, 0x3000, false)) == Verdict::Raw,
+	      "reversed access range must not bypass a hazard");
+	AddOne(t, G(0x5000, 0x5000, true));
+	Check(t.Poisoned(), "malformed recorded range poisons the tracker");
+	Check(CheckOne(t, G(0x9000, 0x9010, false)) == Verdict::Raw,
+	      "poisoned tracker conservatively synchronizes unrelated accesses");
+	t.Reset();
+	Check(t.Empty(), "reset clears malformed-range poison");
+}
+
 static void TestChainReset() {
 	// ShaderAccess (after a dispatch): compute -> all commands, shader read|write -> memory read|write.
 	Check(ChainReset(Compute, ShRead | ShWrite, AllCommands, MemRead | MemWrite) == Reset::Compute,
@@ -216,6 +231,7 @@ int main() {
 	TestAliasing();
 	TestIndirectArguments();
 	TestCapacity();
+	TestMalformedRanges();
 	TestChainReset();
 	TestChain();
 	std::printf("gpu hazard tests passed\n");
