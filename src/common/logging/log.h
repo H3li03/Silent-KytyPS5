@@ -11,6 +11,8 @@ namespace Log {
 
 void Initialize();
 void Flush();
+// Bounded, opt-in graphics diagnostics (KYTY_GRAPHICS_DIAG=1).
+void WriteGraphicsDiagnostic(std::string_view category, std::string_view text);
 
 struct Lifecycle {
 	static constexpr const char* name               = "Log";
