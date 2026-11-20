@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cstdint>
+#include <mutex>
 #include <string>
 #include <span>
 
@@ -16,6 +17,9 @@ namespace Libs::Graphics::PipelineFeedback {
 // times per path go to Report(), which the "Pipeline skip" line and the exit report print. The
 // feedback struct is chained onto a copy of the create info at the driver call only, after the
 // content key was taken, so journal and known keys are unchanged.
+// Shared external-synchronization lock for the application's VkPipelineCache.
+[[nodiscard]] std::mutex& DriverCacheMutex() noexcept;
+
 enum class Path : uint32_t {
 	Sync,    // created on the command processor (draw waits)
 	Builder, // skip / prefetch builder threads
