@@ -201,6 +201,16 @@ RenderContext::~RenderContext() {
 void RenderContext::InitializeGpu(VideoOut::VideoOutDriver* video_out) {
 	EXIT_IF(m_gpu != nullptr);
 	m_video_out = video_out;
+	Log::WriteGraphicsDiagnostic(
+	    "gpu",
+	    fmt::format("device={} vendor_id=0x{:04x} device_id=0x{:04x} driver_version={} api_version={} "
+	                "device_type={}",
+	                m_graphics.physical_device_properties.deviceName,
+	                m_graphics.physical_device_properties.vendorID,
+	                m_graphics.physical_device_properties.deviceID,
+	                m_graphics.physical_device_properties.driverVersion,
+	                m_graphics.physical_device_properties.apiVersion,
+	                vk::to_string(m_graphics.physical_device_properties.deviceType)));
 	Log::WriteGraphicsDiagnostic("gpu", "RenderContext::InitializeGpu begin");
 	m_gpu       = std::make_unique<GuestGpu>(*this);
 	Log::WriteGraphicsDiagnostic("gpu", "RenderContext::InitializeGpu GuestGpu created");
