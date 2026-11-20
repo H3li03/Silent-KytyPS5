@@ -813,18 +813,34 @@ void EmitSetAttribute(ValueEmitContext& ctx, const IR::Inst& inst) {
 				state.builder.AddFunction(spv::OpStore, blend_output, alpha);
 			}
 		}
-		// EXPERIMENTAL AMD diagnostic: bypass the guest-to-host MRT component shuffle.
-		// This is intentionally isolated on experiment/amd-mrt-export-swizzle-bypass.
-		// If the 3D scene regains colour, investigate ColorComponentMapping construction;
-		// otherwise revert this experiment. Do not use as a general compatibility fix.
-		if (false && state.program.stage == ShaderType::Pixel && exp.kind == IR::ExportTargetKind::Mrt &&
+		// KYTY_COLOR_PATH_PROBE: record guest pixel-export metadata at the SPIR-V
+		// boundary. These are shader translation inputs, not sampled pixel values.
+		if (state.program.stage == ShaderType::Pixel && exp.kind == IR::ExportTargetKind::Mrt &&
 		    exp.index < state.input_info.pixel->target_export_mapping.size()) {
+			static std::atomic_uint probe_count {0};
+			const auto probe_index = probe_count.fetch_add(1, std::memory_order_relaxed);
 			const auto mapping = state.input_info.pixel->target_export_mapping[exp.index];
+			if (probe_index < 512u) {
+				char line[512] {};
+				std::snprintf(
+				    line, sizeof(line),
+				    "KYTY_COLOR_PATH_PROBE|phase=pixel_export|n=%u|mrt=%u|en=0x%x|compressed=%u|mode=%u|integer_outputs=%u|uint_output=%u|target_shader_mask=0x%08x|half_float_mask=0x%08x|alpha_blend_source=%u|mapping=%u,%u,%u,%u|identity=%u|mapping_applied=%u\\n",
+				    probe_index, exp.index, static_cast<unsigned>(exp.en), exp.compr ? 1u : 0u,
+				    output_mode, GetCodegenOptions().int_mrt_outputs ? 1u : 0u,
+				    uint_output ? 1u : 0u, state.input_info.pixel->target_shader_mask,
+				    state.input_info.pixel->target_half_float_mask,
+				    static_cast<unsigned>(state.input_info.pixel->alpha_blend_source),
+				    static_cast<unsigned>(mapping.Map(0)), static_cast<unsigned>(mapping.Map(1)),
+				    static_cast<unsigned>(mapping.Map(2)), static_cast<unsigned>(mapping.Map(3)),
+				    mapping.IsIdentity() ? 1u : 0u, mapping.IsIdentity() ? 0u : 1u);
+				Log::WriteToConsoleAndLog(line);
+			}
+			// Preserve the normal guest-to-host component mapping: this branch is diagnostic only.
 			if (!mapping.IsIdentity()) {
 				const auto mapped = state.builder.AllocateId();
 				state.builder.AddFunction(spv::OpVectorShuffle, vector_type, mapped, value, value,
-				                          mapping.Map(0), mapping.Map(1), mapping.Map(2),
-				                          mapping.Map(3));
+								  mapping.Map(0), mapping.Map(1), mapping.Map(2),
+								  mapping.Map(3));
 				value = mapped;
 			}
 		}
