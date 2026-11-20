@@ -371,17 +371,17 @@ void EmitMeshEntryPoint(EmitterState& state) {
 	                           TypeU32(state), ConstantU32(state, 0));
 	auto primitives = MeshLoad(state, state.mesh_allocation, spv::StorageClassWorkgroup,
 	                           TypeU32(state), ConstantU32(state, 1));
+	// SPV_EXT_mesh_shader requires both OpSetMeshOutputsEXT counts to stay within
+	// the shader's declared output limits. Enforce this unconditionally: a debug
+	// geometry guard must never be able to disable a Vulkan validity requirement.
+	const auto& mesh = state.input_info.vertex->mesh;
+	vertices         = MinU32(state, vertices, ConstantU32(state, mesh.max_vertices));
+	primitives       = MinU32(state, primitives, ConstantU32(state, mesh.max_primitives));
+	const auto none  = state.builder.AllocateId();
+	state.builder.AddFunction(spv::OpIEqual, TypeBool(state), none, vertices,
+	                          ConstantU32(state, 0));
+	primitives = SelectU32(state, none, ConstantU32(state, 0), primitives);
 	const bool guard = GetHostGeometryGuard().mesh_outputs;
-	if (guard) {
-		// Counts above the declared maximums, and primitives without vertices, are undefined.
-		const auto& mesh = state.input_info.vertex->mesh;
-		vertices         = MinU32(state, vertices, ConstantU32(state, mesh.max_vertices));
-		primitives       = MinU32(state, primitives, ConstantU32(state, mesh.max_primitives));
-		const auto none  = state.builder.AllocateId();
-		state.builder.AddFunction(spv::OpIEqual, TypeBool(state), none, vertices,
-		                          ConstantU32(state, 0));
-		primitives = SelectU32(state, none, ConstantU32(state, 0), primitives);
-	}
 	state.builder.AddFunction(spv::OpSetMeshOutputsEXT, vertices,
 	                          primitives); // OpSetMeshOutputsEXT
 	for (uint32_t slot = 0; slot < state.lane_count * state.mesh_passes; slot++) {
