@@ -6461,7 +6461,10 @@ struct PipelineCache::FastFirstState {
 	                         ComputeFast& out) {
 		auto&      device = cache.m_graphics.device;
 		const auto plain  = [&] {
-			const auto result = device.createComputePipelines(cache.m_driver_cache, 1, &info, nullptr, pipeline);
+			const auto result = [&] {
+				std::scoped_lock cache_lock(PipelineFeedback::DriverCacheMutex());
+				return device.createComputePipelines(cache.m_driver_cache, 1, &info, nullptr, pipeline);
+			}();
 			if (result == vk::Result::eSuccess) cache.NoteKnownPipeline(key);
 			return result;
 		};
@@ -6477,8 +6480,10 @@ struct PipelineCache::FastFirstState {
 			probe_info.flags = vk::PipelineCreateFlagBits::eFailOnPipelineCompileRequired;
 			vk::Pipeline cached      = nullptr;
 			const auto   probe_begin = CompileClockNs();
-			const auto   probed =
-			    device.createComputePipelines(cache.m_driver_cache, 1, &probe_info, nullptr, &cached);
+			const auto   probed = [&] {
+				std::scoped_lock cache_lock(PipelineFeedback::DriverCacheMutex());
+				return device.createComputePipelines(cache.m_driver_cache, 1, &probe_info, nullptr, &cached);
+			}();
 			counters.probe_ns.fetch_add(CompileClockNs() - probe_begin, std::memory_order_relaxed);
 			PaceLog::NoteStall(probe_begin, CompileClockNs(), PaceLog::StallProbe, 0, 0, "driver cache probe");
 			if (probed == vk::Result::eSuccess && cached != nullptr) {
@@ -6602,8 +6607,11 @@ struct PipelineCache::FastFirstState {
 		const auto          begin     = CompileClockNs();
 		HangWatchdog::Scope compile("compute-pipeline-optimize",
 		                            reinterpret_cast<uint64_t>(static_cast<VkPipeline>(fast)), id);
-		const auto          result = cache.m_graphics.device.createComputePipelines(
-            cache.m_driver_cache, 1, &snapshot.info, nullptr, &optimized);
+		const auto          result = [&] {
+			std::scoped_lock cache_lock(PipelineFeedback::DriverCacheMutex());
+			return cache.m_graphics.device.createComputePipelines(
+			    cache.m_driver_cache, 1, &snapshot.info, nullptr, &optimized);
+		}();
 		Finish(result, optimized, begin, [&](uint64_t ns) {
 			cache.NoteKnownPipeline(known_key);
 			cache.ReplaceFastPipeline(nullptr, id, fast, optimized, fast_ns, ns);
@@ -7504,7 +7512,8 @@ struct PipelineCache::ComputePrewarm {
 		uint64_t                  key      = 0;
 		ComputePipelineCreateHook hook     = [&](const vk::ComputePipelineCreateInfo& create, vk::Pipeline* out) {
             key = cache.m_known != nullptr ? ComputePipelineKey(create) : 0;
-            return cache.m_graphics.device.createComputePipelines(cache.m_driver_cache, 1, &create, nullptr, out);
+            std::scoped_lock cache_lock(PipelineFeedback::DriverCacheMutex());
+			return cache.m_graphics.device.createComputePipelines(cache.m_driver_cache, 1, &create, nullptr, out);
 		};
 		vk::Result          result = vk::Result::eSuccess;
 		const auto          begin  = CompileClockNs();
@@ -7751,7 +7760,8 @@ struct PipelineCache::JournalReplay {
 		if (running.fetch_sub(1, std::memory_order_acq_rel) == 1) {
 			size_t cache_bytes = 0;
 			if (cache.m_driver_cache != nullptr) {
-				(void)cache.m_graphics.device.getPipelineCacheData(cache.m_driver_cache, &cache_bytes, nullptr);
+				{ std::scoped_lock cache_lock(PipelineFeedback::DriverCacheMutex());
+				  (void)cache.m_graphics.device.getPipelineCacheData(cache.m_driver_cache, &cache_bytes, nullptr); }
 			}
 			PipelineCacheLog("Pipeline journal: replay {} after {:.1f} s: {} built ({:.1f} ms; {} with another "
 			                 "translator's modules, {} from the pipeline list), {} skipped as known, {} with modules "
@@ -7826,7 +7836,9 @@ struct PipelineCache::JournalReplay {
 		if (cache_full.load(std::memory_order_relaxed)) return true;
 		if (full_checks.fetch_add(1, std::memory_order_relaxed) % 32 != 0) return false;
 		size_t size = 0;
-		if (cache.m_graphics.device.getPipelineCacheData(cache.m_driver_cache, &size, nullptr) == vk::Result::eSuccess &&
+		if ([&] { std::scoped_lock cache_lock(PipelineFeedback::DriverCacheMutex());
+		         return cache.m_graphics.device.getPipelineCacheData(cache.m_driver_cache, &size, nullptr);
+		     }() == vk::Result::eSuccess &&
 		    size > cache_limit_bytes && !cache_full.exchange(true)) {
 			PipelineCacheLog("Pipeline replay: the driver cache holds {} bytes, over the replay limit of {} bytes "
 			                 "(KYTY_PIPELINE_LIST_CACHE_LIMIT_MB); the remaining records are not built",
@@ -8577,7 +8589,8 @@ void PipelineCache::RunListPrepare() {
 	phase.store("saving");
 	progress();
 	size_t     size     = 0;
-	if (m_driver_cache != nullptr) (void)m_graphics.device.getPipelineCacheData(m_driver_cache, &size, nullptr);
+	if (m_driver_cache != nullptr) { std::scoped_lock cache_lock(PipelineFeedback::DriverCacheMutex());
+		(void)m_graphics.device.getPipelineCacheData(m_driver_cache, &size, nullptr); }
 	Save();
 	const auto& t = g_compile_totals;
 	PipelineCacheLog("Prepare shaders: done in {:.1f} s (shaders {:.1f} s, pipelines and saving {:.1f} s): {} "
@@ -9252,7 +9265,8 @@ uint64_t PipelineCache::WriteDriverCache(bool periodic) {
 	if (m_known != nullptr) m_known->Seal();
 	for (uint32_t attempt = 0; attempt < 3 && result == vk::Result::eIncomplete; attempt++) {
 		size   = 0;
-		result = m_graphics.device.getPipelineCacheData(m_driver_cache, &size, nullptr);
+		{ std::scoped_lock cache_lock(PipelineFeedback::DriverCacheMutex());
+		  result = m_graphics.device.getPipelineCacheData(m_driver_cache, &size, nullptr); }
 		if (result != vk::Result::eSuccess || size == 0 ||
 		    size > std::numeric_limits<uint32_t>::max()) {
 			break;
@@ -9271,7 +9285,8 @@ uint64_t PipelineCache::WriteDriverCache(bool periodic) {
 			data = payload.data();
 		}
 		size   = capacity;
-		result = m_graphics.device.getPipelineCacheData(m_driver_cache, &size, data);
+		{ std::scoped_lock cache_lock(PipelineFeedback::DriverCacheMutex());
+		  result = m_graphics.device.getPipelineCacheData(m_driver_cache, &size, data); }
 	}
 	if (m_saver != nullptr) m_saver->serializing.store(false, std::memory_order_relaxed);
 	const auto serialized = CompileClockNs();
