@@ -5950,7 +5950,7 @@ void RenderExecutor::RebindImages(PreparedBindings& prepared) {
 				static std::atomic<uint32_t> rejected {0};
 				if (rejected.fetch_add(1, std::memory_order_relaxed) < 16) {
 					LOGF("KYTY_AMD_STORAGE_DESCRIPTOR_REJECTED: shader=%016" PRIx64
-					     " image_index=%u format=D32S8; binding null storage image\\n",
+					     " image_index=%u format=%d usage=0x%x; binding null storage image\\n",
 					     program.shader_hash, i, static_cast<int>(backing.format),
 					     static_cast<unsigned>(static_cast<vk::ImageUsageFlags::MaskType>(backing.usage)));
 				}
