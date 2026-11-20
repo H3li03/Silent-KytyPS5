@@ -1,6 +1,7 @@
 #include "graphics/host_gpu/renderer/image/imageView.h"
 
 #include "common/assert.h"
+#include "common/logging/log.h"
 #include "graphics/host_gpu/graphicContext.h"
 #include "graphics/host_gpu/renderer/image/image.h"
 
@@ -413,6 +414,16 @@ vk::ImageView Image::FindView(const ImageViewInfo& view_info) {
 	if (DeadViewScrubEnabled()) {
 		NoteImageViewCreated(view);
 	}
+	Log::WriteGraphicsDiagnostic(
+	    "image_view",
+	    fmt::format("guest_address=0x{:016x} image_format={} view_format={} type={} aspect=0x{:x} "
+	                "mip={}+{} layer={}+{} usage=0x{:x}",
+	                info.data.address, vk::to_string(image.format), vk::to_string(normalized.format),
+	                vk::to_string(normalized.type),
+	                static_cast<vk::ImageAspectFlags::MaskType>(normalized.aspect),
+	                normalized.base_level, normalized.level_count, normalized.base_layer,
+	                normalized.layer_count,
+	                static_cast<vk::ImageUsageFlags::MaskType>(normalized.usage)));
 	SetVulkanObjectNameF(
 	    m_graphics.device, view,
 	    "Kyty.ImageView[guest=0x{:016x} format={} aspect=0x{:x} mip={}+{} layer={}+{}]",
