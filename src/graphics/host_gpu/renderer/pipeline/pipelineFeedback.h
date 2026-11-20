@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cstdint>
+#include <mutex>
 #include <string>
 
 namespace Libs::Graphics::PipelineFeedback {
@@ -24,6 +25,9 @@ enum class Path : uint32_t {
 };
 
 [[nodiscard]] bool Enabled();
+
+// Shared external-synchronization lock for the application's VkPipelineCache.
+[[nodiscard]] std::mutex& DriverCacheMutex() noexcept;
 
 // vkCreateGraphicsPipelines for one pipeline, counted when Enabled(); otherwise a plain call.
 vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::GraphicsPipelineCreateInfo& info,
