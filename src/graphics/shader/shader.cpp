@@ -1489,6 +1489,23 @@ static void ShaderGetStaticInputInfoPS(
 	// KYTY_CB_SHADER_MASK_EXPORTS (upstream 21a1346e2): target_output_mode is per export, the
 	// export mapping comes from the export's colour target.
 	ps_info.target_shader_mask = ShaderCbShaderMaskExports() ? sh.m_cbShaderMask : UINT32_MAX;
+	// Opt-in, bounded probe for AMD monochrome rendering: compare the guest mask
+	// with the effective mask and render-target output modes without changing them.
+	static const bool color_mask_probe = [] {
+		const char* value = std::getenv("KYTY_COLOR_MASK_AUDIT");
+		return value != nullptr && std::strcmp(value, "0") != 0;
+	}();
+	if (color_mask_probe) {
+		static std::atomic_uint logged {0};
+		if (logged.fetch_add(1, std::memory_order_relaxed) < 128) {
+			LOGF("KYTY_COLOR_MASK_AUDIT guest=0x%08x effective=0x%08x modes=%u,%u,%u,%u,%u,%u,%u,%u\n",
+			     static_cast<unsigned>(sh.m_cbShaderMask), static_cast<unsigned>(ps_info.target_shader_mask),
+			     static_cast<unsigned>(sh.target_output_mode[0]), static_cast<unsigned>(sh.target_output_mode[1]),
+			     static_cast<unsigned>(sh.target_output_mode[2]), static_cast<unsigned>(sh.target_output_mode[3]),
+			     static_cast<unsigned>(sh.target_output_mode[4]), static_cast<unsigned>(sh.target_output_mode[5]),
+			     static_cast<unsigned>(sh.target_output_mode[6]), static_cast<unsigned>(sh.target_output_mode[7]));
+		}
+	}
 	for (uint32_t i = 0; i < 8; i++) {
 		const auto slot                  = ShaderPixelExportTarget(ps_info.target_shader_mask, i);
 		ps_info.target_output_mode[i]    = sh.target_output_mode[i];
