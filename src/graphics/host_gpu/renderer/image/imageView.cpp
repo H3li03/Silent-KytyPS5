@@ -342,6 +342,21 @@ vk::ImageView Image::FindView(const ImageViewInfo& view_info) {
 			return cached.view;
 		}
 	}
+	// Vulkan's image-view usage is a restriction of the backing image usage,
+	// never an extension of it. Do not submit a view with a STORAGE bit that
+	// the VkImage was not created with (VUID-VkImageViewCreateInfo-pNext-02662).
+	// The descriptor caller must route unsupported storage writes to a shadow
+	// image instead of silently inventing usage on the original attachment.
+	if (is_storage && !(image.usage & vk::ImageUsageFlagBits::eStorage)) {
+		static std::atomic<uint32_t> missing_storage_usage {0};
+		if (missing_storage_usage.fetch_add(1, std::memory_order_relaxed) < 32) {
+			std::fprintf(stderr,
+			             "KYTY_STORAGE_VIEW_BACKING_USAGE_REJECTED: format=%d usage=0x%x\\n",
+			             static_cast<int>(image.format),
+			             static_cast<unsigned>(static_cast<vk::ImageUsageFlags::MaskType>(image.usage)));
+		}
+		return nullptr;
+	}
 	// An image created without what the device refused (Image::Image) cannot have this view.
 	if (is_storage && static_cast<bool>(m_dropped_usage & vk::ImageUsageFlagBits::eStorage)) {
 		EXIT("a shader binds a %s image as a storage image (view format %s), but the Vulkan device "
