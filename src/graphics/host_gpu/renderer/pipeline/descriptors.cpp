@@ -5941,13 +5941,18 @@ void RenderExecutor::RebindImages(PreparedBindings& prepared) {
 		// A D32S8 image without STORAGE usage cannot be made writable by a view.
 		if (binding.desc.type == TextureCache::BindingType::Storage) {
 			const auto& backing = texture_cache.GetImage(binding.image_id).backing;
-			if (backing.format == vk::Format::eD32SfloatS8Uint &&
-			    !static_cast<bool>(backing.usage & vk::ImageUsageFlagBits::eStorage)) {
+			// A storage descriptor must never request a storage view on a backing
+			// image lacking STORAGE usage, regardless of its format. Vulkan does
+			// not permit a VkImageViewUsageCreateInfo to add image usage bits.
+			// Route such resources to the existing valid null-storage fallback.
+			if (!static_cast<bool>(backing.usage & vk::ImageUsageFlagBits::eStorage) ||
+			    backing.format == vk::Format::eD32SfloatS8Uint) {
 				static std::atomic<uint32_t> rejected {0};
 				if (rejected.fetch_add(1, std::memory_order_relaxed) < 16) {
 					LOGF("KYTY_AMD_STORAGE_DESCRIPTOR_REJECTED: shader=%016" PRIx64
 					     " image_index=%u format=D32S8; binding null storage image\\n",
-					     program.shader_hash, i);
+					     program.shader_hash, i, static_cast<int>(backing.format),
+					     static_cast<unsigned>(static_cast<vk::ImageUsageFlags::MaskType>(backing.usage)));
 				}
 				binding.desc = NullTextureDesc(program.info.images[i], TextureCache::BindingType::Storage);
 				binding.image_id = texture_cache.FindImage(binding.desc);
