@@ -1464,6 +1464,11 @@ if(LINUX)
 endif()
 
 add_kyty_full_emulator_test(shader_recompiler_compute_tests "${KYTY_TESTS_DIR}/ShaderRecompilerComputeTests.cpp")
+# Shader compute tests use throw/try (including ShaderIsaAuditTests.inc).
+# Keep exception support local to this test target on Windows.
+if(WIN32)
+	target_compile_options(shader_recompiler_compute_tests PRIVATE /EHsc)
+endif()
 
 set(gpu_test_generated_dir "${PROJECT_BINARY_DIR}/gpu_test_shaders")
 set(gpu_test_ms_depth_source
