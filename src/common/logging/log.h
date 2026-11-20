@@ -33,6 +33,8 @@ inline void Write(std::string_view text) {
 void WriteToConsoleAndLog(std::string_view text);
 // Writes and flushes the dedicated mesh-rendering investigation log.
 void WriteMeshDiagnostic(std::string_view text);
+// Writes the bounded graphics color-path probe to its own log, separate from mesh diagnostics.
+void WriteColorPathProbe(std::string_view text);
 
 namespace Color {
 
