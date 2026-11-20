@@ -1,0 +1,8 @@
+
+FullName                                                                               LastWriteTime       Length
+--------                                                                               -------------       ------
+C:\Giochi\SilentKyty\Silent-KytyPS5\_Build\windows\install\kyty-mesh-investigation.txt 20/11/2026 17:54:07 403260
+C:\Giochi\SilentKyty\Silent-KytyPS5\_Build\windows\install\_kyty_vulkan_validation.log 20/11/2026 17:54:05 279326
+
+
+
