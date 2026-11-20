@@ -205,7 +205,7 @@ void RenderContext::InitializeGpu(VideoOut::VideoOutDriver* video_out) {
 	    "gpu",
 	    fmt::format("device={} vendor_id=0x{:04x} device_id=0x{:04x} driver_version={} api_version={} "
 	                "device_type={}",
-	                m_graphics.physical_device_properties.deviceName,
+	                m_graphics.physical_device_properties.deviceName.data(),
 	                m_graphics.physical_device_properties.vendorID,
 	                m_graphics.physical_device_properties.deviceID,
 	                m_graphics.physical_device_properties.driverVersion,
