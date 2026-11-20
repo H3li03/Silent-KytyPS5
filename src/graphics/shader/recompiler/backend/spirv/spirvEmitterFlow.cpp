@@ -824,8 +824,8 @@ void EmitSetAttribute(ValueEmitContext& ctx, const IR::Inst& inst) {
 				char line[512] {};
 				std::snprintf(
 				    line, sizeof(line),
-				    "KYTY_COLOR_PATH_PROBE|phase=pixel_export|n=%u|mrt=%u|en=0x%x|compressed=%u|mode=%u|integer_outputs=%u|uint_output=%u|target_shader_mask=0x%08x|half_float_mask=0x%08x|alpha_blend_source=%u|mapping=%u,%u,%u,%u|identity=%u|mapping_applied=%u\n",
-				    probe_index, exp.index, static_cast<unsigned>(exp.en), exp.compr ? 1u : 0u,
+				    "KYTY_COLOR_PATH_PROBE|phase=pixel_export|n=%u|shader=0x%016llx|stage=%u|mrt=%u|en=0x%x|compressed=%u|mode=%u|integer_outputs=%u|uint_output=%u|target_shader_mask=0x%08x|half_float_mask=0x%08x|alpha_blend_source=%u|mapping=%u,%u,%u,%u|identity=%u|mapping_applied=%u\n",
+				    probe_index, static_cast<unsigned long long>(state.program.shader_hash),\n\t\t\t\t    static_cast<unsigned>(state.program.stage), exp.index,\n\t\t\t\t    static_cast<unsigned>(exp.en), exp.compr ? 1u : 0u,
 				    output_mode, GetCodegenOptions().int_mrt_outputs ? 1u : 0u,
 				    uint_output ? 1u : 0u, state.input_info.pixel->target_shader_mask,
 				    state.input_info.pixel->target_half_float_mask,
