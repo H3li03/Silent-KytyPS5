@@ -11554,6 +11554,13 @@ PipelineCache::Pipeline* PipelineCache::GetGraphicsPipelineImpl(
 				*pipeline = adopted;
 				return vk::Result::eSuccess;
 			}
+			// The synchronous keyed path must retain its stage modules just like fast-first.
+			// Otherwise shader retirement may invalidate a module during driver compilation.
+			auto module_pins = ShaderModulePins::Capture(m_graphics.device, info.pStages, info.stageCount);
+			if (module_pins == nullptr) {
+				PipelineCacheLog("Keyed graphics: rejected pipeline with unpinnable shader module");
+				return vk::Result::eErrorInitializationFailed;
+			}
 			const auto result = PipelineFeedback::CreateGraphics(m_graphics.device, m_driver_cache, info, pipeline,
 			                                                     PipelineFeedback::Path::Sync);
 			if (result == vk::Result::eSuccess) NoteKnownPipeline(content.key);
@@ -11563,6 +11570,13 @@ PipelineCache::Pipeline* PipelineCache::GetGraphicsPipelineImpl(
 	if (m_library != nullptr) {
 		library_hook = [&](const vk::GraphicsPipelineCreateInfo& info,
 		                   std::span<const uint32_t> layout_signature, vk::Pipeline* pipeline) {
+			// Library builds can also enter vkCreateGraphicsPipelines synchronously.
+			// Keep the shader modules valid across the complete library operation.
+			auto module_pins = ShaderModulePins::Capture(m_graphics.device, info.pStages, info.stageCount);
+			if (module_pins == nullptr) {
+				PipelineCacheLog("Graphics library: rejected pipeline with unpinnable shader module");
+				return vk::Result::eErrorInitializationFailed;
+			}
 			library_result = m_library->library.Create(info, layout_signature, m_driver_cache);
 			*pipeline      = library_result.pipeline;
 			return library_result.result;
