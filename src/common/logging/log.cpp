@@ -66,7 +66,7 @@ void Initialize() {
 	if (graphics_diag != nullptr && std::strcmp(graphics_diag, "1") == 0) {
 		const auto* requested_path = std::getenv("KYTY_GRAPHICS_DIAG_FILE");
 		const std::filesystem::path diagnostic_path =
-		    requested_path != nullptr && requested_path[0] != '\\0'
+		    requested_path != nullptr && requested_path[0] != 0
 		        ? std::filesystem::path(requested_path)
 		        : std::filesystem::path("kyty-graphics-diagnostics.log");
 		if (diagnostic_path.has_parent_path()) {
