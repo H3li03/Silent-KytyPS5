@@ -681,9 +681,9 @@ void RenderExecutor::ResolveRenderColorTarget(CommandBuffer& buffer, RenderColor
 	r.export_mapping           = target_format.export_mapping;
 	Log::WriteGraphicsDiagnostic(
 	    "color_target",
-	    fmt::format("image_id={} guest_mip={} guest_layer={} export_mapping={} samples={} fragments={}",
-	                r.image_id, r.guest_mip_level, r.guest_array_layer,
-	                static_cast<uint32_t>(r.export_mapping), rt.attrib.num_samples,
+	    fmt::format("guest_mip={} guest_layer={} export_mapping_packed=0x{:02x} samples={} fragments={}",
+		                r.guest_mip_level, r.guest_array_layer,
+		                static_cast<uint32_t>(r.export_mapping.packed), rt.attrib.num_samples,
 	                rt.attrib.num_fragments));
 	BindRenderTarget(r.image_id);
 }
