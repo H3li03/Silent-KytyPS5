@@ -1,0 +1,11 @@
+Test: AMD 3D unchanged after Release rebuild
+Date: 2026-11-20 19:20:48 +01:00
+Branch: rewrite/amd-vulkan-resource-contracts
+Commit: 35cb278be7f9458d1dd15b53e2a72b9a33de1c32
+GPU: AMD Radeon RX 6900 XT
+Result: 3D geometry unchanged; textures still incorrect
+KYTY_AMD_DETERMINISTIC_GRAPHICS=1
+KYTY_STENCIL_STORAGE_SHADOW=1
+KYTY_MESH_CULL=full
+Launcher: kyty_launcher.exe
+Preset: u59-preset.json
