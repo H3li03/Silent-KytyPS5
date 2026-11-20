@@ -835,7 +835,7 @@ void EmitSetAttribute(ValueEmitContext& ctx, const IR::Inst& inst) {
 				    static_cast<unsigned>(mapping.Map(0)), static_cast<unsigned>(mapping.Map(1)),
 				    static_cast<unsigned>(mapping.Map(2)), static_cast<unsigned>(mapping.Map(3)),
 				    mapping.IsIdentity() ? 1u : 0u, mapping.IsIdentity() ? 0u : 1u);
-				Log::WriteToConsoleAndLog(line);
+				Log::WriteColorPathProbe(line);
 			}
 			// Preserve the normal guest-to-host component mapping: this branch is diagnostic only.
 			if (!mapping.IsIdentity()) {
