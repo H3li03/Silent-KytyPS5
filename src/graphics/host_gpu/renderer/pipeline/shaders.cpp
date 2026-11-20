@@ -646,6 +646,23 @@ void CreatePipelineInternal(GraphicContext& graphics, PipelineCache::Pipeline& p
 	pipeline_info.layout                  = pipeline.pipeline_layout;
 	pipeline_info.basePipelineIndex       = -1;
 
+	// Record the *actual* stage handles submitted to the pipeline hook/driver.
+	// Unlike LOGF, this is written to kyty-mesh-investigation.txt so a single
+	// runtime capture can establish whether the invalid modules originate in
+	// this call and which stage kinds are involved.
+	{
+		static std::atomic<uint32_t> stage_probe_count {0};
+		const auto probe = stage_probe_count.fetch_add(1, std::memory_order_relaxed);
+		if (probe < 128) {
+			for (uint32_t i = 0; i < shader_stage_count; ++i) {
+				Log::WriteMeshDiagnostic(fmt::sprintf(
+				    "KYTY_AMD_STAGE_PROVENANCE seq=%u stage=%u kind=%u module=%p hook=%u mesh=%u rect=%u\\n",
+				    probe, i, static_cast<uint32_t>(shader_stages[i].stage),
+				    static_cast<void*>(static_cast<VkShaderModule>(shader_stages[i].module)),
+				    create_hook != nullptr ? 1u : 0u, mesh ? 1u : 0u, rect_list ? 1u : 0u));
+			}
+		}
+	}
 	const auto driver_begin = std::chrono::steady_clock::now();
 	// Rect-list emulation creates two temporary tessellation shader modules above.
 	// Their lifetime ends at the bottom of this function. A pipeline hook may
