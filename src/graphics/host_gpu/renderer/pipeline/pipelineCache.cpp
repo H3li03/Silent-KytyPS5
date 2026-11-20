@@ -6381,6 +6381,14 @@ struct PipelineCache::FastFirstState {
 			*pipeline     = adopted;
 			return vk::Result::eSuccess;
 		}
+		// Pin before any synchronous probe or build, not only before the fast-first
+		// background job. Otherwise shader retirement can invalidate pStages during
+		// vkCreateGraphicsPipelines (VUID-VkPipelineShaderStageCreateInfo-module-parameter).
+		auto module_pins = ShaderModulePins::Capture(device, info.pStages, info.stageCount);
+		if (module_pins == nullptr) {
+			PipelineCacheLog("Fast-first graphics: rejected pipeline with unpinnable shader module");
+			return vk::Result::eErrorInitializationFailed;
+		}
 		NoteSeen();
 		auto snapshot = content.snapshot != nullptr
 		                    ? content.snapshot
@@ -6413,12 +6421,7 @@ struct PipelineCache::FastFirstState {
 			counters.cap_fallbacks.fetch_add(1, std::memory_order_relaxed);
 			return plain();
 		}
-		auto module_pins = ShaderModulePins::Capture(device, info.pStages, info.stageCount);
-		if (module_pins == nullptr) {
-			scheduler.Release();
-			counters.ineligible.fetch_add(1, std::memory_order_relaxed);
-			return plain();
-		}
+		// The same pins also stay with the queued optimized build.
 		// No driver cache: the unoptimized pipeline would otherwise be stored in it. The
 		// optimized build fills the cache.
 		auto fast_info = info;
