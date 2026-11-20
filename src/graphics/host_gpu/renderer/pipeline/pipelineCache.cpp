@@ -8805,8 +8805,17 @@ PipelineCache::PipelineCache(GraphicContext& graphics)
 		m_fast_first->compute_only = true;
 		PipelineCacheLog("Pipeline fast-first: compute pipelines only (KYTY_PIPELINE_FAST_FIRST_COMPUTE)");
 	}
+	// Deterministic AMD graphics experiment: do not hand graphics pipeline creation
+	// to a background worker. The existing synchronous driver path remains authoritative.
+	// This isolates pipeline lifetime/race issues without modifying shader or disk caches.
+	const bool amd_deterministic_graphics =
+	    m_graphics.GetPhysicalDeviceProperties().vendorID == 0x1002u &&
+	    EnvU64("KYTY_AMD_DETERMINISTIC_GRAPHICS", 1) != 0;
+	if (amd_deterministic_graphics) {
+		PipelineCacheLog("AMD deterministic graphics: background graphics prefetch/skip disabled");
+	}
 	const bool graphics_fast_first = m_fast_first != nullptr && !m_fast_first->compute_only;
-	if ((g_pipeline_prefetch.On() || EnvU64("KYTY_PIPELINE_PREFETCH_POOL", 0) != 0) && m_library == nullptr &&
+	if (!amd_deterministic_graphics && (g_pipeline_prefetch.On() || EnvU64("KYTY_PIPELINE_PREFETCH_POOL", 0) != 0) && m_library == nullptr &&
 	    !graphics_fast_first) {
 		// Up to 16: a cold Miles start compiles hundreds of ~130 ms pipelines, and the old cap of 4
 		// silently turned 8 or 12 into 4.
@@ -8816,7 +8825,7 @@ PipelineCache::PipelineCache(GraphicContext& graphics)
 		m_prefetch = std::make_unique<PrefetchState>(*this, threads, 128, keyed);
 		PipelineCacheLog("Pipeline prefetch: {} compile workers; draws always wait for their exact pipeline", threads);
 	}
-	if (EnvU64("KYTY_PIPELINE_SKIP", 0) != 0 && m_library == nullptr) {
+	if (!amd_deterministic_graphics && EnvU64("KYTY_PIPELINE_SKIP", 0) != 0 && m_library == nullptr) {
 		const auto threads = std::clamp<uint64_t>(EnvU64("KYTY_PIPELINE_SKIP_THREADS", 3), 1, 16);
 		m_skip_wait_ns     = std::min<uint64_t>(EnvU64("KYTY_PIPELINE_SKIP_WAIT_US", 2000), 1000000) * 1000ull;
 		m_skip_frame_budget_ns =
@@ -11545,7 +11554,8 @@ PipelineCache::Pipeline* PipelineCache::GetGraphicsPipelineImpl(
 	// both may retain a snapshot of VkShaderModule handles past their lifetime.
 	// This changes actual 3D pipeline creation, not merely diagnostics, and keeps
 	// the driver pipeline cache and the existing shader/texture caches intact.
-	const bool amd_sync_graphics = m_graphics.GetPhysicalDeviceProperties().vendorID == 0x1002u;
+	const bool amd_sync_graphics = m_graphics.GetPhysicalDeviceProperties().vendorID == 0x1002u &&
+	    EnvU64("KYTY_AMD_DETERMINISTIC_GRAPHICS", 1) != 0;
 	if (amd_sync_graphics && !prefetched) {
 		library_hook = [&](const vk::GraphicsPipelineCreateInfo& info,
 		                   std::span<const uint32_t> layout_signature, vk::Pipeline* pipeline) {
@@ -11553,7 +11563,7 @@ PipelineCache::Pipeline* PipelineCache::GetGraphicsPipelineImpl(
 			const auto count = amd_sync_count.fetch_add(1, std::memory_order_relaxed);
 			if (count < 32) {
 				Log::WriteMeshDiagnostic(fmt::sprintf(
-				    "KYTY_AMD_3D_SYNC_GRAPHICS seq=%u stages=%u mesh=%u\\n",
+				    "KYTY_AMD_3D_SYNC_GRAPHICS seq=%u stages=%u mesh=%u\n",
 				    count, info.stageCount,
 				    info.pStages != nullptr && info.stageCount != 0 &&
 				            info.pStages[0].stage == vk::ShaderStageFlagBits::eMeshEXT ? 1u : 0u));
