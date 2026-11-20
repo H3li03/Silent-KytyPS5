@@ -12,16 +12,18 @@
 namespace Libs::Graphics::ShaderRecompiler::Spirv::Emitter {
 namespace {
 
-// KYTY_MESH_CULL selects how much of the primitive guard below is emitted, for A/B runs:
-// "off" (or unset: default off in this line, "full" in the Insomniac title presets) emits none of
-// it, "zero" only the zero-position test, anything else everything.
+// Default to full invalid-primitive protection in the mesh shader translator.
+// The guest can export a zero-position vertex or an out-of-range triangle index;
+// emitting such primitives can produce screen-wide wedges on AMD hardware.
+// KYTY_MESH_CULL=off preserves the original behavior for an A/B comparison;
+// KYTY_MESH_CULL=zero enables only the zero-position test.
 enum class MeshCull { Off, Zero, Full };
 
 MeshCull MeshCullMode() {
 	static const MeshCull mode = [] {
 		const char* value = std::getenv("KYTY_MESH_CULL");
-		if (value == nullptr || value[0] == '\0' || std::strcmp(value, "off") == 0 ||
-		    std::strcmp(value, "0") == 0) {
+		if (value != nullptr && (std::strcmp(value, "off") == 0 ||
+		                         std::strcmp(value, "0") == 0)) {
 			return MeshCull::Off;
 		}
 		if (value != nullptr && std::strcmp(value, "zero") == 0) {
