@@ -647,7 +647,19 @@ void CreatePipelineInternal(GraphicContext& graphics, PipelineCache::Pipeline& p
 	pipeline_info.basePipelineIndex       = -1;
 
 	const auto driver_begin = std::chrono::steady_clock::now();
-	if (create_hook != nullptr) {
+	// Rect-list emulation creates two temporary tessellation shader modules above.
+	// Their lifetime ends at the bottom of this function. A pipeline hook may
+	// snapshot pStages and defer an optimized build until after those modules
+	// have been destroyed (invalid VkShaderModule at stages 1 and 2).
+	// Build these rare pipelines synchronously while both modules are alive.
+	if (rect_list && create_hook != nullptr) {
+		static std::atomic<uint32_t> sync_rect_list {0};
+		if (sync_rect_list.fetch_add(1, std::memory_order_relaxed) < 16) {
+			LOGF("KYTY_AMD_RECTLIST_SYNC_TESS: stages=%u; temporary tessellation modules retained through vkCreateGraphicsPipelines\n",
+			     shader_stage_count);
+		}
+	}
+	if (create_hook != nullptr && !rect_list) {
 		// The pipeline-library path shares libraries only between identically defined layouts.
 		// Interned (pipelineLayoutCache.h): pipelines with equal canonical signatures get the same
 		// layout handles, so that signature identifies the definition. Not interned: each pipeline
