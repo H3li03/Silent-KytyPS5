@@ -6046,12 +6046,16 @@ void RenderExecutor::RebindImages(PreparedBindings& prepared) {
 	const bool verify_runs  = view_runs && DrawPrep::BindingsVerifyMode() != 0;
 	uint32_t   view_run_end = 0; // verify: [i, view_run_end) predicted as run hits
 	const auto run_length   = [&](uint32_t first) {
-        uint32_t end = first;
-        while (end < count &&
-               program.info.images[end].mip_mode != ShaderRecompiler::IR::ImageMipMode::Dynamic) {
-            end++;
-        }
-        return end - first;
+		uint32_t end = first;
+		// Memoized runs mark every acquired view as sampled and skip acquire_view().
+		// Storage bindings must use the individual path, which validates their
+		// backing usage and format before acquiring a writable image view.
+		while (end < count &&
+		       images[end].desc.type != TextureCache::BindingType::Storage &&
+		       program.info.images[end].mip_mode != ShaderRecompiler::IR::ImageMipMode::Dynamic) {
+			end++;
+		}
+		return end - first;
 	};
 	for (uint32_t i = 0; i < count; i++) {
 		if (view_runs && !verify_runs) {
