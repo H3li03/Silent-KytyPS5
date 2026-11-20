@@ -99,6 +99,11 @@ void Initialize() {
 		g_color_path_logger->info("KYTY_COLOR_PATH_PROBE|session_start|file={}",
 		                          color_path.generic_string());
 		g_color_path_logger->flush();
+		// Startup marker distinguishes a fresh emulator session from stale 512-event probe logs.
+		const char* mask_audit = std::getenv("KYTY_COLOR_MASK_AUDIT");
+		g_color_path_logger->info("KYTY_COLOR_MASK_AUDIT_START enabled={} source=log_initialize",
+		                          mask_audit != nullptr && mask_audit[0] != '0' ? 1 : 0);
+		g_color_path_logger->flush();
 	} catch (...) {
 		g_color_path_logger = nullptr;
 	}
