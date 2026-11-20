@@ -868,8 +868,8 @@ void EmitSetAttribute(ValueEmitContext& ctx, const IR::Inst& inst) {
 			if (!mapping.IsIdentity()) {
 				const auto mapped = state.builder.AllocateId();
 				state.builder.AddFunction(spv::OpVectorShuffle, vector_type, mapped, value, value,
-								  mapping.Map(0), mapping.Map(1), mapping.Map(2),
-								  mapping.Map(3));
+				                          mapping.Map(0), mapping.Map(1), mapping.Map(2),
+				                          mapping.Map(3));
 				value = mapped;
 			}
 		}
