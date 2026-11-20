@@ -11539,7 +11539,30 @@ PipelineCache::Pipeline* PipelineCache::GetGraphicsPipelineImpl(
 	FastFirstState::GraphicsFast    fast_result;
 	GraphicsContent                 content;
 	const bool                      keyed = m_known != nullptr || m_journal != nullptr;
-	if (m_fast_first != nullptr && !m_fast_first->compute_only && !prefetched && !m_fast_first->scheduler.Stopped()) {
+	// AMD correctness path: create the complete graphics pipeline while its shader
+	// modules and stage array are still owned by CreatePipelineInternal. Avoid
+	// fast-first/background optimization and graphics pipeline libraries here:
+	// both may retain a snapshot of VkShaderModule handles past their lifetime.
+	// This changes actual 3D pipeline creation, not merely diagnostics, and keeps
+	// the driver pipeline cache and the existing shader/texture caches intact.
+	const bool amd_sync_graphics = m_graphics.GetPhysicalDeviceProperties().vendorID == 0x1002u;
+	if (amd_sync_graphics && !prefetched) {
+		library_hook = [&](const vk::GraphicsPipelineCreateInfo& info,
+		                   std::span<const uint32_t> layout_signature, vk::Pipeline* pipeline) {
+			static std::atomic<uint32_t> amd_sync_count {0};
+			const auto count = amd_sync_count.fetch_add(1, std::memory_order_relaxed);
+			if (count < 32) {
+				Log::WriteMeshDiagnostic(fmt::sprintf(
+				    "KYTY_AMD_3D_SYNC_GRAPHICS seq=%u stages=%u mesh=%u\\n",
+				    count, info.stageCount,
+				    info.pStages != nullptr && info.stageCount != 0 &&
+				            info.pStages[0].stage == vk::ShaderStageFlagBits::eMeshEXT ? 1u : 0u));
+			}
+			const auto result = PipelineFeedback::CreateGraphics(
+			    m_graphics.device, m_driver_cache, info, pipeline, PipelineFeedback::Path::Sync);
+			return result;
+		};
+	} else if (m_fast_first != nullptr && !m_fast_first->compute_only && !prefetched && !m_fast_first->scheduler.Stopped()) {
 		library_hook = [&](const vk::GraphicsPipelineCreateInfo& info,
 		                   std::span<const uint32_t> layout_signature, vk::Pipeline* pipeline) {
 			if (keyed) content = DescribeGraphicsPipeline(info, layout_signature);
@@ -11560,7 +11583,7 @@ PipelineCache::Pipeline* PipelineCache::GetGraphicsPipelineImpl(
 			return result;
 		};
 	}
-	if (m_library != nullptr) {
+	if (m_library != nullptr && !amd_sync_graphics) {
 		library_hook = [&](const vk::GraphicsPipelineCreateInfo& info,
 		                   std::span<const uint32_t> layout_signature, vk::Pipeline* pipeline) {
 			library_result = m_library->library.Create(info, layout_signature, m_driver_cache);
