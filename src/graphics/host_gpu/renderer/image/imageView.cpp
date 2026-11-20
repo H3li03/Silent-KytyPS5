@@ -320,16 +320,16 @@ vk::ImageView Image::FindView(const ImageViewInfo& view_info) {
 		normalized.aspect = vk::ImageAspectFlagBits::eStencil;
 	}
 	normalized.usage = is_storage ? vk::ImageUsageFlagBits::eStorage : vk::ImageUsageFlags {};
-	// The actual backing image usage is authoritative: a D32S8 depth/stencil image
-	// cannot be made writable by requesting STORAGE only on its image view.
-	// Reject the invalid view before vkCreateImageView; descriptor resolution must
-	// redirect writable stencil planes to the R8 shadow or a null storage binding.
-	if (is_storage && image.format == vk::Format::eD32SfloatS8Uint &&
-	    !static_cast<bool>(image.usage & vk::ImageUsageFlagBits::eStorage)) {
+	// D32S8 is not a storage-image format on the AMD device in the runtime
+	// validation logs. A STORAGE bit on the backing image is not sufficient:
+	// VkImageViewCreateInfo-usage-02275 also requires STORAGE_IMAGE format
+	// features. Never create a D32S8 storage view; stencil writes must use the
+	// R8 shadow image, or the caller must supply a valid fallback descriptor.
+	if (is_storage && image.format == vk::Format::eD32SfloatS8Uint) {
 		static std::atomic<uint32_t> rejected {0};
 		if (rejected.fetch_add(1, std::memory_order_relaxed) < 16) {
 			std::fprintf(stderr,
-			             "KYTY_AMD_DEPTH_STORAGE_VIEW_REJECTED: format=D32S8 view=%d aspect=0x%x "
+			             "KYTY_AMD_D32S8_STORAGE_FORMAT_REJECTED: format=D32S8 view=%d aspect=0x%x "
 			             "backing_usage=0x%x; descriptor must use stencil shadow or null storage\n",
 			             static_cast<int>(normalized.format),
 			             static_cast<unsigned>(static_cast<vk::ImageAspectFlags::MaskType>(normalized.aspect)),
