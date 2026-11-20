@@ -1494,7 +1494,7 @@ static void ShaderGetStaticInputInfoPS(
 	{
 		static std::atomic_uint logged {0};
 		if (logged.fetch_add(1, std::memory_order_relaxed) < 128) {
-			Log::WriteColorPathProbe(fmt::sprintf("KYTY_COLOR_MASK_AUDIT guest=0x%08x effective=0x%08x modes=%u,%u,%u,%u,%u,%u,%u,%u\\n",
+			Log::WriteColorPathProbe(fmt::sprintf("KYTY_COLOR_MASK_AUDIT guest=0x%08x effective=0x%08x modes=%u,%u,%u,%u,%u,%u,%u,%u\n",
 			     static_cast<unsigned>(sh.m_cbShaderMask), static_cast<unsigned>(ps_info.target_shader_mask),
 			     static_cast<unsigned>(sh.target_output_mode[0]), static_cast<unsigned>(sh.target_output_mode[1]),
 			     static_cast<unsigned>(sh.target_output_mode[2]), static_cast<unsigned>(sh.target_output_mode[3]),
