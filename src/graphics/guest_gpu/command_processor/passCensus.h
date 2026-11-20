@@ -21,8 +21,11 @@ namespace Libs::Graphics::PassCensus {
 // with KYTY_CP_SEQ=0 KYTY_CP_SEQ_PREFETCH=0).
 [[nodiscard]] bool LabelsEnabled();
 // The marker stack is tracked (census or labels): the CP calls Marker/Packet only then.
+// Experimental color-investigation build: keep CP marker names for pass dumps even when the
+// launcher does not forward environment variables. No census aggregation or Vulkan labels.
+[[nodiscard]] bool CaptureMarkersEnabled();
 [[nodiscard]] inline bool Tracking() {
-	return Enabled() || LabelsEnabled();
+	return Enabled() || LabelsEnabled() || CaptureMarkersEnabled();
 }
 // Writes the label text of a draw ('d', a = VS, b = PS) or dispatch ('c', a = CS) into `out`.
 void LabelText(char* out, size_t size, char kind, uint64_t a, uint64_t b);
