@@ -1509,6 +1509,33 @@ static void ShaderGetStaticInputInfoPS(
 		                                       ? target_export_mapping[slot]
 		                                       : Prospero::ColorComponentMapping {};
 	}
+	// Trace export-to-attachment slots and the selected output modes after mapping.
+	// This is diagnostic-only: no target or shader state is modified.
+	{
+		static std::atomic_uint mapped_logged {0};
+		if (mapped_logged.fetch_add(1, std::memory_order_relaxed) < 128) {
+			Log::WriteColorPathProbe(fmt::sprintf(
+			    "KYTY_COLOR_EXPORT_SLOTS mask=0x%08x slots=%u,%u,%u,%u,%u,%u,%u,%u modes=%u,%u,%u,%u,%u,%u,%u,%u\n",
+			    static_cast<unsigned>(ps_info.target_shader_mask),
+			    ShaderPixelExportTarget(ps_info.target_shader_mask, 0),
+			    ShaderPixelExportTarget(ps_info.target_shader_mask, 1),
+			    ShaderPixelExportTarget(ps_info.target_shader_mask, 2),
+			    ShaderPixelExportTarget(ps_info.target_shader_mask, 3),
+			    ShaderPixelExportTarget(ps_info.target_shader_mask, 4),
+			    ShaderPixelExportTarget(ps_info.target_shader_mask, 5),
+			    ShaderPixelExportTarget(ps_info.target_shader_mask, 6),
+			    ShaderPixelExportTarget(ps_info.target_shader_mask, 7),
+			    static_cast<unsigned>(ps_info.target_output_mode[0]),
+			    static_cast<unsigned>(ps_info.target_output_mode[1]),
+			    static_cast<unsigned>(ps_info.target_output_mode[2]),
+			    static_cast<unsigned>(ps_info.target_output_mode[3]),
+			    static_cast<unsigned>(ps_info.target_output_mode[4]),
+			    static_cast<unsigned>(ps_info.target_output_mode[5]),
+			    static_cast<unsigned>(ps_info.target_output_mode[6]),
+			    static_cast<unsigned>(ps_info.target_output_mode[7])));
+		}
+	}
+
 }
 
 static void ShaderGetStaticInputInfoCS(const HW::ComputeShaderInfo& regs,
