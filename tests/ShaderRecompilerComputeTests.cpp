@@ -30746,7 +30746,9 @@ public:
       }
       const vk::Bool32 write = true;
       cmd.setColorWriteEnableEXT(1, &write);
-      cmd.setAttachmentFeedbackLoopEnableEXT(feedback_aspects);
+      if (m_runtime_context.attachment_feedback_loop_enabled) {
+        cmd.setAttachmentFeedbackLoopEnableEXT(feedback_aspects);
+      }
       if (PipelineDynamicRasterStateEnabled()) {
         // Dynamic in every renderer pipeline (KYTY_PIPELINE_DYNAMIC_STATE); the
         // draw path records them from the same registers the key used to hold.
@@ -34097,9 +34099,9 @@ private:
       m_runtime_context.transfer_queue_family = m_transfer_family;
       m_runtime_context.transfer_queue = m_transfer_queue;
     }
-    m_runtime_context.attachment_feedback_loop_enabled = true;
+    m_runtime_context.attachment_feedback_loop_enabled = m_feedback_loop_enabled;
     m_runtime_context.provoking_vertex_last_enabled = true;
-    // The harness device requires and enables both (production rasterization features).
+    // Feedback-loop dynamic state is optional, matching the production Vulkan device.
     m_runtime_context.color_write_enable_enabled = true;
     m_runtime_context.depth_clip_enable_enabled = true;
     m_runtime_context.storage_image_read_without_format_enabled =
@@ -34389,12 +34391,15 @@ private:
             "image view minimum LOD is not supported");
     Require("VulkanHarness", "graphics", available_features12.shaderOutputLayer == true,
             "vertex layer output is not supported");
+    // The production renderer disables attachment feedback loops when either extension
+    // feature is unavailable. Compute-only occlusion checks must remain runnable.
+    m_feedback_loop_enabled =
+        available_feedback_layout.attachmentFeedbackLoopLayout == VK_TRUE &&
+        available_feedback_dynamic.attachmentFeedbackLoopDynamicState == VK_TRUE;
     Require("VulkanHarness", "graphics", available_features.fillModeNonSolid &&
                 available_features.tessellationShader && available_features.depthBounds &&
                 available_depth_clip.depthClipEnable && available_clip_control.depthClipControl &&
                 available_color_write.colorWriteEnable &&
-                available_feedback_layout.attachmentFeedbackLoopLayout &&
-                available_feedback_dynamic.attachmentFeedbackLoopDynamicState &&
                 available_provoking_vertex.provokingVertexLast,
             "production rasterization features are not supported");
 
@@ -34474,12 +34479,13 @@ private:
     color_write.colorWriteEnable = true;
     vk::PhysicalDeviceAttachmentFeedbackLoopLayoutFeaturesEXT feedback_layout{};
     feedback_layout.pNext = &color_write;
-    feedback_layout.attachmentFeedbackLoopLayout = true;
     vk::PhysicalDeviceAttachmentFeedbackLoopDynamicStateFeaturesEXT feedback_dynamic{};
     feedback_dynamic.pNext = &feedback_layout;
-    feedback_dynamic.attachmentFeedbackLoopDynamicState = true;
+    feedback_dynamic.attachmentFeedbackLoopDynamicState = m_feedback_loop_enabled;
+    feedback_layout.attachmentFeedbackLoopLayout = m_feedback_loop_enabled;
     vk::PhysicalDeviceProvokingVertexFeaturesEXT provoking_vertex{};
-    provoking_vertex.pNext = &feedback_dynamic;
+    provoking_vertex.pNext = m_feedback_loop_enabled ? static_cast<void *>(&feedback_dynamic)
+                                                    : static_cast<void *>(&color_write);
     provoking_vertex.provokingVertexLast = available_provoking_vertex.provokingVertexLast;
     vk::PhysicalDeviceImageViewMinLodFeaturesEXT min_lod{};
     min_lod.pNext = &provoking_vertex;
@@ -34546,12 +34552,14 @@ private:
         VK_EXT_DEPTH_CLIP_ENABLE_EXTENSION_NAME,
         VK_EXT_DEPTH_CLIP_CONTROL_EXTENSION_NAME,
         VK_EXT_COLOR_WRITE_ENABLE_EXTENSION_NAME,
-        VK_EXT_ATTACHMENT_FEEDBACK_LOOP_LAYOUT_EXTENSION_NAME,
-        VK_EXT_ATTACHMENT_FEEDBACK_LOOP_DYNAMIC_STATE_EXTENSION_NAME,
         VK_EXT_PROVOKING_VERTEX_EXTENSION_NAME,
         VK_KHR_WORKGROUP_MEMORY_EXPLICIT_LAYOUT_EXTENSION_NAME,
         VK_EXT_SHADER_IMAGE_ATOMIC_INT64_EXTENSION_NAME,
         VK_EXT_IMAGE_VIEW_MIN_LOD_EXTENSION_NAME};
+    if (m_feedback_loop_enabled) {
+      device_extensions.push_back(VK_EXT_ATTACHMENT_FEEDBACK_LOOP_LAYOUT_EXTENSION_NAME);
+      device_extensions.push_back(VK_EXT_ATTACHMENT_FEEDBACK_LOOP_DYNAMIC_STATE_EXTENSION_NAME);
+    }
     if (robustness2_supported) {
       device_extensions.push_back(VK_EXT_ROBUSTNESS_2_EXTENSION_NAME);
     }
@@ -35004,6 +35012,7 @@ private:
   bool m_sampler_filter_minmax = false;
   // Enabled on the device when supported; the runtime context reports them only inside
   // MeshShaderScope, so every other check keeps the context it always had.
+  bool m_feedback_loop_enabled = false;
   bool m_mesh_shader = false;
   vk::PhysicalDeviceMeshShaderPropertiesEXT m_mesh_properties{};
   bool m_draw_indirect_first_instance = false;
