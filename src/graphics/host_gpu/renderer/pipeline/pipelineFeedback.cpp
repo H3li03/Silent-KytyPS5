@@ -58,6 +58,11 @@ bool Enabled() {
 	return enabled;
 }
 
+std::mutex& DriverCacheMutex() noexcept {
+	static std::mutex mutex;
+	return mutex;
+}
+
 vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::GraphicsPipelineCreateInfo& original,
                           vk::Pipeline* pipeline, Path path) {
 	// KYTY_EMPTY_FS: the driver's copy only (the caller keyed the original).
@@ -72,7 +77,10 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	}
 	const auto& info = stats ? stats_info : plain_info;
 	if (!Enabled()) {
-		const auto made = device.createGraphicsPipelines(cache, 1, &info, nullptr, pipeline);
+		const auto made = [&] {
+			std::scoped_lock lock(DriverCacheMutex());
+			return device.createGraphicsPipelines(cache, 1, &info, nullptr, pipeline);
+		}();
 		if (stats && made == vk::Result::eSuccess && *pipeline != nullptr) {
 			PipelineStats::Print(device, *pipeline, PipelineStats::Describe(info.pStages, info.stageCount), info.flags);
 		}
@@ -86,7 +94,10 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 	auto copy                                   = info;
 	copy.pNext                                  = &feedback;
 	const auto begin                            = NowNs();
-	const auto result                           = device.createGraphicsPipelines(cache, 1, &copy, nullptr, pipeline);
+	const auto result                           = [&] {
+		std::scoped_lock lock(DriverCacheMutex());
+		return device.createGraphicsPipelines(cache, 1, &copy, nullptr, pipeline);
+	}();
 	const auto ns                               = NowNs() - begin;
 	auto&      c                                = g_counters[static_cast<size_t>(path)];
 	if (result != vk::Result::eSuccess || *pipeline == nullptr) {
