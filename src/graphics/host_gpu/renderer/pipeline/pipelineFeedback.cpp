@@ -35,6 +35,7 @@ struct Counters {
 };
 
 std::array<Counters, static_cast<size_t>(Path::Count)> g_counters;
+std::mutex g_driver_cache_mutex;
 // Diagnostic serialization for graphics-pipeline driver calls. The AMD crash log shows
 // non-Mesh pipeline creation overlapping a serialized Mesh compile, so the global experiment
 // must cover every graphics pipeline routed through this wrapper.
@@ -93,6 +94,10 @@ void Max(std::atomic<uint64_t>& target, uint64_t value) {
 }
 
 } // namespace
+
+std::mutex& DriverCacheMutex() noexcept {
+	return g_driver_cache_mutex;
+}
 
 bool Enabled() {
 	static const bool enabled = [] {
@@ -268,7 +273,10 @@ vk::Result CreateGraphics(vk::Device device, vk::PipelineCache cache, const vk::
 			Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_MESH_DIAG_PIPELINE_SERIALIZE_LOCKED id=%u scope=%s\n", id,
 			                                      serialize_all_pipeline ? "all" : "mesh"));
 		}
-		const auto made = device.createGraphicsPipelines(cache, 1, &create_info, nullptr, pipeline);
+		const auto made = [&] {
+			std::scoped_lock cache_lock(DriverCacheMutex());
+			return device.createGraphicsPipelines(cache, 1, &create_info, nullptr, pipeline);
+		}();
 		if (serialize_mesh_pipeline || serialize_all_pipeline) {
 			Log::WriteMeshDiagnostic(fmt::sprintf("KYTY_MESH_DIAG_PIPELINE_SERIALIZE_RETURN id=%u result=%d\n", id, static_cast<int>(made)));
 		}
