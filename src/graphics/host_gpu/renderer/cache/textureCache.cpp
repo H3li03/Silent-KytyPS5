@@ -121,7 +121,11 @@ static bool AliasAgeByFrames() {
 static bool StencilDepthAliasEnabled() {
 	static const bool enabled = [] {
 		const auto* value = std::getenv("KYTY_STENCIL_DEPTH_ALIAS");
-		const bool  on    = value != nullptr && value[0] == '1';
+		// The descriptor path already redirects eligible stencil writes to an R8
+		// storage shadow and rejects unsupported depth/stencil storage views.
+		// Use that valid Vulkan path by default; allow an explicit 0 to compare
+		// rendering against the previous behavior without changing depth/stencil.
+		const bool  on    = value == nullptr || value[0] != '0';
 		if (on) {
 			std::printf("Depth/stencil images kept as aliases of their colour interpretations "
 			            "(KYTY_STENCIL_DEPTH_ALIAS=1)\n");
