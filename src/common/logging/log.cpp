@@ -20,6 +20,7 @@ static bool g_console     = false;
 // threads keep logging while exit runs static destructors.
 static spdlog::logger* g_logger = nullptr;
 static spdlog::logger* g_mesh_logger = nullptr;
+static spdlog::logger* g_color_path_logger = nullptr;
 
 static void WriteStdout(std::string_view text, fmt::text_style style) {
 	if (style == fmt::text_style {}) {
@@ -79,6 +80,28 @@ void Initialize() {
 		// Diagnostic logging must never prevent the emulator from starting.
 		g_mesh_logger = nullptr;
 	}
+
+	// Keep pixel-export metadata in its own file. Never reuse or truncate the mesh investigation log.
+	delete g_color_path_logger;
+	g_color_path_logger = nullptr;
+	try {
+		const auto color_path = path.empty() ? std::filesystem::path("kyty-color-path-probe.log")
+		                                     : path.parent_path() / "kyty-color-path-probe.log";
+		if (color_path.has_parent_path()) {
+			std::filesystem::create_directories(color_path.parent_path());
+		}
+		const bool truncate = std::getenv(RelaunchedVariable) == nullptr;
+		auto color_sink =
+		    std::make_shared<spdlog::sinks::basic_file_sink_mt>(color_path.native(), truncate);
+		color_sink->set_formatter(std::make_unique<spdlog::pattern_formatter>(
+		    "%v", spdlog::pattern_time_type::local, ""));
+		g_color_path_logger = new spdlog::logger("kyty-color-path-probe", std::move(color_sink));
+		g_color_path_logger->info("KYTY_COLOR_PATH_PROBE|session_start|file={}",
+		                          color_path.generic_string());
+		g_color_path_logger->flush();
+	} catch (...) {
+		g_color_path_logger = nullptr;
+	}
 }
 
 void Flush() {
@@ -87,6 +110,9 @@ void Flush() {
 	}
 	if (g_mesh_logger != nullptr) {
 		g_mesh_logger->flush();
+	}
+	if (g_color_path_logger != nullptr) {
+		g_color_path_logger->flush();
 	}
 }
 
@@ -124,6 +150,15 @@ void WriteMeshDiagnostic(std::string_view text) {
 	if (g_mesh_logger != nullptr) {
 		g_mesh_logger->log(spdlog::level::info, spdlog::string_view_t(text.data(), text.size()));
 		g_mesh_logger->flush();
+	} else {
+		WriteToConsoleAndLog(text);
+	}
+}
+
+void WriteColorPathProbe(std::string_view text) {
+	if (g_color_path_logger != nullptr) {
+		g_color_path_logger->log(spdlog::level::info, spdlog::string_view_t(text.data(), text.size()));
+		g_color_path_logger->flush();
 	} else {
 		WriteToConsoleAndLog(text);
 	}
