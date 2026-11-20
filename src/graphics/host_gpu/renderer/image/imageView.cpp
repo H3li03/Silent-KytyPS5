@@ -4,6 +4,9 @@
 #include "graphics/host_gpu/graphicContext.h"
 #include "graphics/host_gpu/renderer/image/image.h"
 
+#include <atomic>
+#include <cstdio>
+
 namespace Libs::Graphics {
 
 namespace {
@@ -317,6 +320,23 @@ vk::ImageView Image::FindView(const ImageViewInfo& view_info) {
 		normalized.aspect = vk::ImageAspectFlagBits::eStencil;
 	}
 	normalized.usage = is_storage ? vk::ImageUsageFlagBits::eStorage : vk::ImageUsageFlags {};
+	// The actual backing image usage is authoritative: a D32S8 depth/stencil image
+	// cannot be made writable by requesting STORAGE only on its image view.
+	// Reject the invalid view before vkCreateImageView; descriptor resolution must
+	// redirect writable stencil planes to the R8 shadow or a null storage binding.
+	if (is_storage && image.format == vk::Format::eD32SfloatS8Uint &&
+	    !(image.usage & vk::ImageUsageFlagBits::eStorage)) {
+		static std::atomic<uint32_t> rejected {0};
+		if (rejected.fetch_add(1, std::memory_order_relaxed) < 16) {
+			std::fprintf(stderr,
+			             "KYTY_AMD_DEPTH_STORAGE_VIEW_REJECTED: format=D32S8 view=%d aspect=0x%x "
+			             "backing_usage=0x%x; descriptor must use stencil shadow or null storage\n",
+			             static_cast<int>(normalized.format),
+			             static_cast<unsigned>(static_cast<vk::ImageAspectFlags::MaskType>(normalized.aspect)),
+			             static_cast<unsigned>(static_cast<vk::ImageUsageFlags::MaskType>(image.usage)));
+		}
+		return nullptr;
+	}
 	for (const auto& cached: views) {
 		if (cached.info == normalized) {
 			return cached.view;
