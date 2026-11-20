@@ -691,6 +691,19 @@ void EmitSetAttribute(ValueEmitContext& ctx, const IR::Inst& inst) {
 		                          ConstantU32(state, 0));
 		state.builder.AddFunction(spv::OpStore, state.pixel_valid_mask_variable, value);
 	}
+	if (state.program.stage == ShaderType::Pixel &&
+	    (exp.kind == IR::ExportTargetKind::Null || exp.en == 0u)) {
+		static std::atomic_uint skipped_count {0};
+		const auto probe_index = skipped_count.fetch_add(1, std::memory_order_relaxed);
+		if (probe_index < 128u) {
+			char line[256] {};
+			std::snprintf(line, sizeof(line),
+			              "KYTY_COLOR_PATH_PROBE|phase=pixel_export_skip|n=%u|shader=0x%016llx|kind=%u|index=%u|en=0x%x\\n",
+			              probe_index, static_cast<unsigned long long>(state.program.shader_hash),
+			              static_cast<unsigned>(exp.kind), exp.index, static_cast<unsigned>(exp.en));
+			Log::WriteColorPathProbe(line);
+		}
+	}
 	if (exp.kind == IR::ExportTargetKind::Null || exp.en == 0u) {
 		return;
 	}
@@ -734,6 +747,20 @@ void EmitSetAttribute(ValueEmitContext& ctx, const IR::Inst& inst) {
 		const auto variable =
 		    state.program.stage == ShaderType::Mesh ? 0u : OutputVariableForExport(state, exp);
 		if (state.program.stage != ShaderType::Mesh && variable == 0) {
+			if (state.program.stage == ShaderType::Pixel && exp.kind == IR::ExportTargetKind::Mrt) {
+				static std::atomic_uint missing_count {0};
+				const auto probe_index = missing_count.fetch_add(1, std::memory_order_relaxed);
+				if (probe_index < 128u) {
+					char line[256] {};
+					std::snprintf(
+					    line, sizeof(line),
+					    "KYTY_COLOR_PATH_PROBE|phase=pixel_output_missing|n=%u|shader=0x%016llx|mrt=%u|en=0x%x|mode=%u|target_shader_mask=0x%08x\\n",
+					    probe_index, static_cast<unsigned long long>(state.program.shader_hash),
+					    exp.index, static_cast<unsigned>(exp.en), MrtOutputMode(state, exp),
+					    state.input_info.pixel->target_shader_mask);
+					Log::WriteColorPathProbe(line);
+				}
+			}
 			return;
 		}
 		// KYTY_INT_MRT_OUTPUTS=1 (upstream 26ca60923): exports to UINT and SINT targets are typed
