@@ -1492,7 +1492,7 @@ static void ShaderGetStaticInputInfoPS(
 		static std::atomic_uint input_logged {0};
 		if (input_logged.fetch_add(1, std::memory_order_relaxed) < 128) {
 			Log::WriteColorPathProbe(fmt::sprintf(
-			    "KYTY_3D_PS_INPUT num=%u layout=0x%08x enabled=0x%08x active=0x%08x custom=0x%08x wave=%u perspective_center=%u perspective_centroid=%u linear_center=%u linear_centroid=%u no_perspective=%u early_z=%u\\n",
+			    "KYTY_3D_PS_INPUT num=%u layout=0x%08x enabled=0x%08x active=0x%08x custom=0x%08x wave=%u perspective_center=%u perspective_centroid=%u linear_center=%u linear_centroid=%u no_perspective=%u early_z=%u\n",
 			    static_cast<unsigned>(ps_info.input_num), static_cast<unsigned>(layout_inputs),
 			    static_cast<unsigned>(sh.ps_input_ena), static_cast<unsigned>(active_inputs),
 			    static_cast<unsigned>(ps_info.custom_interpolation_mask),
