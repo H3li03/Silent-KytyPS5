@@ -732,6 +732,18 @@ void CreatePipelineInternal(GraphicContext& graphics, PipelineCache::Pipeline& p
 			return;
 		}
 	}
+	if (result != vk::Result::eSuccess || pipeline.pipeline == nullptr) {
+		// Record the actual Vulkan failure and the stage handles before the fatal assertion.
+		// In particular, distinguish driver failures from a hook rejecting a module pin.
+		LOGF("GraphicsPipelineFailure: result=%d pipeline_null=%u stage_count=%u hook=%u mesh=%u\n",
+		     static_cast<int>(result), pipeline.pipeline == nullptr ? 1u : 0u,
+		     shader_stage_count, create_hook != nullptr ? 1u : 0u, mesh ? 1u : 0u);
+		for (uint32_t i = 0; i < shader_stage_count; ++i) {
+			LOGF("GraphicsPipelineFailure: stage[%u] kind=%u module=%p\n", i,
+			     static_cast<uint32_t>(shader_stages[i].stage),
+			     static_cast<void*>(shader_stages[i].module));
+		}
+	}
 	EXIT_NOT_IMPLEMENTED(result != vk::Result::eSuccess);
 
 	EXIT_NOT_IMPLEMENTED(pipeline.pipeline == nullptr);
