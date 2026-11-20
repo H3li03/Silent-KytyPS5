@@ -59,6 +59,12 @@ public:
 		if (m_poisoned) {
 			return Verdict::Raw;
 		}
+		// Malformed half-open ranges must never silently bypass synchronization.
+		for (const auto& a: access) {
+			if (a.hi <= a.lo) {
+				return Verdict::Raw;
+			}
+		}
 		Verdict result = Verdict::Free;
 		for (const auto& a: access) {
 			for (const auto& c: m_ranges) {
@@ -82,10 +88,16 @@ public:
 		if (m_poisoned) {
 			return;
 		}
-		if (m_ranges.size() + access.size() > Capacity) {
+		if (access.size() > Capacity - m_ranges.size()) {
 			m_ranges.clear();
 			m_poisoned = true;
 			return;
+		}
+		for (const auto& range: access) {
+			if (range.hi <= range.lo) {
+				Poison();
+				return;
+			}
 		}
 		m_ranges.insert(m_ranges.end(), access.begin(), access.end());
 	}
