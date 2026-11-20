@@ -246,7 +246,7 @@ void CreatePipelineInternal(GraphicContext& graphics, PipelineCache::Pipeline& p
 	    "pipeline",
 	    fmt::format("graphics_pipeline color_attachment_count={} depth_format={} stencil_format={} "
 	                "pixel_shader={} mesh={} tessellation={} topology={}",
-	                rendering.color_formats.size(), vk::to_string(rendering.depth_format),
+	                rendering.color_count, vk::to_string(rendering.depth_format),
 	                vk::to_string(rendering.stencil_format), ps_active ? 1 : 0, mesh ? 1 : 0,
 	                tessellation ? 1 : 0, vk::to_string(static_params.topology)));
 	if (mesh && !graphics.mesh_shader_enabled) {
