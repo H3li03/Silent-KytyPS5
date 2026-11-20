@@ -656,7 +656,7 @@ void CreatePipelineInternal(GraphicContext& graphics, PipelineCache::Pipeline& p
 		if (probe < 128) {
 			for (uint32_t i = 0; i < shader_stage_count; ++i) {
 				Log::WriteMeshDiagnostic(fmt::sprintf(
-				    "KYTY_AMD_STAGE_PROVENANCE seq=%u stage=%u kind=%u module=%p hook=%u mesh=%u rect=%u\\n",
+				    "KYTY_AMD_STAGE_PROVENANCE seq=%u stage=%u kind=%u module=%p hook=%u mesh=%u rect=%u\n",
 				    probe, i, static_cast<uint32_t>(shader_stages[i].stage),
 				    static_cast<void*>(static_cast<VkShaderModule>(shader_stages[i].module)),
 				    create_hook != nullptr ? 1u : 0u, mesh ? 1u : 0u, rect_list ? 1u : 0u));
