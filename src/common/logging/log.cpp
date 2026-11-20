@@ -103,6 +103,12 @@ void Initialize() {
 		const char* mask_audit = std::getenv("KYTY_COLOR_MASK_AUDIT");
 		g_color_path_logger->info("KYTY_COLOR_MASK_AUDIT_START enabled={} source=log_initialize\n",
 		                          mask_audit != nullptr && mask_audit[0] != '0' ? 1 : 0);
+		// Verify whether the emulator process inherited the pass-dump configuration.
+		const char* pass_dump = std::getenv("KYTY_PASS_DUMP");
+		g_color_path_logger->info("KYTY_PASS_DUMP_ENV present={} value={} source=log_initialize\n",
+		                          pass_dump != nullptr && pass_dump[0] != '\0' ? 1 : 0,
+		                          pass_dump != nullptr ? pass_dump : "(unset)");
+		g_color_path_logger->flush();
 		g_color_path_logger->flush();
 	} catch (...) {
 		g_color_path_logger = nullptr;
