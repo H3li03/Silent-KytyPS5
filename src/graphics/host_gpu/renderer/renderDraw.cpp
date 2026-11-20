@@ -1198,6 +1198,28 @@ RenderState RenderExecutor::AcquireRenderTargets(CommandBuffer& buffer, RenderCo
 		attachment.image_view   = image_view;
 		attachment.image_layout = layout;
 	}
+	// Read-only attachment audit: capture the actual Vulkan color views after acquisition.
+	// The slot bitmap distinguishes missing attachments from intentional MRT gaps.
+	{
+		static std::atomic_uint attachment_logged {0};
+		if (attachment_logged.fetch_add(1, std::memory_order_relaxed) < 128) {
+			uint32_t populated = 0;
+			uint32_t general_layout = 0;
+			for (uint32_t slot = 0; slot < state.num_color_attachments; ++slot) {
+				if (state.color_attachments[slot].image_view != nullptr) {
+					populated |= 1u << slot;
+				}
+				if (state.color_attachments[slot].image_layout == vk::ImageLayout::eGeneral) {
+					general_layout |= 1u << slot;
+				}
+			}
+			Log::WriteColorPathProbe(fmt::format(
+			    "KYTY_3D_VK_ATTACHMENTS requested={} span={} populated=0x{:08x} general=0x{:08x} depth={} width={} height={} layers={}\n",
+			    color_count, state.num_color_attachments, populated, general_layout,
+			    static_cast<unsigned>(static_cast<bool>(depth.image_id)),
+			    state.width, state.height, state.num_layers));
+		}
+	}
 	color_scope.Stop();
 	CommitStats::SubScope depth_scope(CommitStats::Sub::AcquireDepth);
 	if (depth.image_id) {
