@@ -345,6 +345,9 @@ void EmitMeshEntryPoint(EmitterState& state) {
 				    ConstantU32(state, 0));
 			}
 		});
+		// All invocations must observe the cleared workgroup mask before any
+		// guest invocation can atomically mark a zero-position vertex.
+		EmitBarrier(state);
 	}
 	if (state.mesh_segment_funcs.empty()) {
 		state.builder.AddFunction(spv::OpFunctionCall, TypeVoid(state), state.builder.AllocateId(),
