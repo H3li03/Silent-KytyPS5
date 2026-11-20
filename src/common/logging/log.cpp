@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <atomic>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <iterator>
 #include <memory>
