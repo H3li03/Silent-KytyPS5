@@ -125,6 +125,13 @@ bool Enabled() {
 	return on;
 }
 
+bool CaptureMarkersEnabled() {
+	// Temporary experiment-only diagnostic: the launcher can drop environment variables.
+	// Keep CP marker stacks so PassDump can attribute output images to game passes.
+	// This does not enable the periodic census report or Vulkan debug labels.
+	return true;
+}
+
 bool LabelsEnabled() {
 	static constexpr auto on_init = [] {
 		const char* value = std::getenv("KYTY_TRACE_VK_LABELS");
