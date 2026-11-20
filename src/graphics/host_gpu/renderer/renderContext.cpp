@@ -201,7 +201,9 @@ RenderContext::~RenderContext() {
 void RenderContext::InitializeGpu(VideoOut::VideoOutDriver* video_out) {
 	EXIT_IF(m_gpu != nullptr);
 	m_video_out = video_out;
+	Log::WriteGraphicsDiagnostic("gpu", "RenderContext::InitializeGpu begin");
 	m_gpu       = std::make_unique<GuestGpu>(*this);
+	Log::WriteGraphicsDiagnostic("gpu", "RenderContext::InitializeGpu GuestGpu created");
 	std::unique_lock lock(m_gpu_notify_mutex);
 	m_gpu_notify = m_gpu.get();
 }
@@ -219,7 +221,9 @@ void RenderContext::ShutdownGpu() {
 		m_gpu_notify = nullptr;
 	}
 	if (m_gpu != nullptr) {
+		Log::WriteGraphicsDiagnostic("gpu", "RenderContext::ShutdownGpu begin");
 		m_gpu->Shutdown();
+		Log::WriteGraphicsDiagnostic("gpu", "RenderContext::ShutdownGpu GuestGpu stopped");
 		m_gpu.reset();
 	}
 	if (m_video_out != nullptr) {
