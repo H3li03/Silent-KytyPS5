@@ -1177,6 +1177,18 @@ RenderState RenderExecutor::AcquireRenderTargets(CommandBuffer& buffer, RenderCo
 			                 target.desc.info.data.address, target.desc.info.data.size);
 		}
 		EXIT_IF(image.backing.samples != target.desc.info.samples || image_view == nullptr);
+		// Record the actual backing format for each acquired color target. Read-only.
+		{
+			static std::atomic_uint format_logged {0};
+			if (format_logged.fetch_add(1, std::memory_order_relaxed) < 128) {
+				Log::WriteColorPathProbe(fmt::format(
+				    "KYTY_3D_VK_COLOR_FORMAT slot={} format={} samples={} extent={}x{} layers={}\n",
+				    target.target_slot, vk::to_string(image.backing.format),
+				    static_cast<uint32_t>(image.backing.samples),
+				    image.backing.extent.width, image.backing.extent.height,
+				    image.backing.extent.depth));
+			}
+		}
 		const auto& view   = target.desc.view_info;
 		m_acq_color_bound[i] = image.binding.is_bound; // KYTY_IMG_ACQFB's seed
 		const auto  layout = image.binding.is_bound ? vk::ImageLayout::eGeneral
