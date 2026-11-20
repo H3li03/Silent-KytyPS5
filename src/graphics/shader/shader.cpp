@@ -1486,6 +1486,26 @@ static void ShaderGetStaticInputInfoPS(
 		ps_info.interpolator_settings[i] = sh.ps_interpolator_settings[i];
 	}
 
+	// Bounded 3D pixel-input audit: detect unexpected interpolation/input-layout state.
+	// Read-only; the guest registers and translated shader inputs are left unchanged.
+	{
+		static std::atomic_uint input_logged {0};
+		if (input_logged.fetch_add(1, std::memory_order_relaxed) < 128) {
+			Log::WriteColorPathProbe(fmt::sprintf(
+			    "KYTY_3D_PS_INPUT num=%u layout=0x%08x enabled=0x%08x active=0x%08x custom=0x%08x wave=%u perspective_center=%u perspective_centroid=%u linear_center=%u linear_centroid=%u no_perspective=%u early_z=%u\\n",
+			    static_cast<unsigned>(ps_info.input_num), static_cast<unsigned>(layout_inputs),
+			    static_cast<unsigned>(sh.ps_input_ena), static_cast<unsigned>(active_inputs),
+			    static_cast<unsigned>(ps_info.custom_interpolation_mask),
+			    static_cast<unsigned>(ps_info.wave_size),
+			    static_cast<unsigned>(ps_info.ps_perspective_center_vgpr),
+			    static_cast<unsigned>(ps_info.ps_perspective_centroid_vgpr),
+			    static_cast<unsigned>(ps_info.ps_linear_center_vgpr),
+			    static_cast<unsigned>(ps_info.ps_linear_centroid_vgpr),
+			    static_cast<unsigned>(ps_info.ps_no_perspective),
+			    static_cast<unsigned>(ps_info.ps_early_z)));
+		}
+	}
+
 	// KYTY_CB_SHADER_MASK_EXPORTS (upstream 21a1346e2): target_output_mode is per export, the
 	// export mapping comes from the export's colour target.
 	ps_info.target_shader_mask = ShaderCbShaderMaskExports() ? sh.m_cbShaderMask : UINT32_MAX;
