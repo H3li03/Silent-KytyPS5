@@ -1,7 +1,7 @@
 diff --git a/src/graphics/host_gpu/renderer/pipeline/descriptors.cpp b/src/graphics/host_gpu/renderer/pipeline/descriptors.cpp
 --- a/src/graphics/host_gpu/renderer/pipeline/descriptors.cpp
 +++ b/src/graphics/host_gpu/renderer/pipeline/descriptors.cpp
-@@ -6047,12 +6047,16 @@
+@@ -6047,10 +6047,14 @@
  	const bool verify_runs  = view_runs && DrawPrep::BindingsVerifyMode() != 0;
  	uint32_t   view_run_end = 0; // verify: [i, view_run_end) predicted as run hits
  	const auto run_length   = [&](uint32_t first) {
