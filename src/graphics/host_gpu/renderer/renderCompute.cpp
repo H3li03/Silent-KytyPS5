@@ -445,6 +445,13 @@ State& Get() {
 			st.folder = text;
 			std::printf("KYTY_PASS_DUMP enabled (diagnostic): trigger %s/pass.now, step %u\n", st.folder.c_str(),
 			            st.step);
+		} else {
+			// Experimental diagnostic fallback: the launcher can start the emulator without
+			// inheriting KYTY_PASS_DUMP. Only arm a capture when pass.now is explicitly created.
+			st.folder = "C:/Giochi/SilentKyty/Silent-KytyPS5/_Build/windows/install/color-investigation";
+			st.step = 8;
+			std::printf("KYTY_PASS_DUMP fallback (diagnostic): trigger %s/pass.now, step %u\n",
+			            st.folder.c_str(), st.step);
 		}
 		return true;
 	};
