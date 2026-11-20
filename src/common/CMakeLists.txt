@@ -21,7 +21,7 @@ if(LINUX)
 endif()
 # Windows diagnostics and event helpers use C++ exception handling.
 if(WIN32)
-	set_property(SOURCE compileWatch.cpp kytyEvents.cpp hangWatchdog.cpp profiler.cpp u59Preset.cpp
+	set_property(SOURCE compileWatch.cpp kytyEvents.cpp hangWatchdog.cpp profiler.cpp u59Preset.cpp logging/log.cpp
 		APPEND PROPERTY COMPILE_OPTIONS /EHsc)
 endif()
 set(localization_dir "${PROJECT_SOURCE_DIR}/assets/localization")
