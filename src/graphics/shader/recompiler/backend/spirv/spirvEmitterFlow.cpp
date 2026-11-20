@@ -698,7 +698,7 @@ void EmitSetAttribute(ValueEmitContext& ctx, const IR::Inst& inst) {
 		if (probe_index < 128u) {
 			char line[256] {};
 			std::snprintf(line, sizeof(line),
-			              "KYTY_COLOR_PATH_PROBE|phase=pixel_export_skip|n=%u|shader=0x%016llx|kind=%u|index=%u|en=0x%x\\n",
+			              "KYTY_COLOR_PATH_PROBE|phase=pixel_export_skip|n=%u|shader=0x%016llx|kind=%u|index=%u|en=0x%x\n",
 			              probe_index, static_cast<unsigned long long>(state.program.shader_hash),
 			              static_cast<unsigned>(exp.kind), exp.index, static_cast<unsigned>(exp.en));
 			Log::WriteColorPathProbe(line);
@@ -754,7 +754,7 @@ void EmitSetAttribute(ValueEmitContext& ctx, const IR::Inst& inst) {
 					char line[256] {};
 					std::snprintf(
 					    line, sizeof(line),
-					    "KYTY_COLOR_PATH_PROBE|phase=pixel_output_missing|n=%u|shader=0x%016llx|mrt=%u|en=0x%x|mode=%u|target_shader_mask=0x%08x\\n",
+					    "KYTY_COLOR_PATH_PROBE|phase=pixel_output_missing|n=%u|shader=0x%016llx|mrt=%u|en=0x%x|mode=%u|target_shader_mask=0x%08x\n",
 					    probe_index, static_cast<unsigned long long>(state.program.shader_hash),
 					    exp.index, static_cast<unsigned>(exp.en), MrtOutputMode(state, exp),
 					    state.input_info.pixel->target_shader_mask);
