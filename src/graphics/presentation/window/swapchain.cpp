@@ -1249,7 +1249,10 @@ void Swapchain::RecordPresentCommands(CommandBuffer& command, Presenter::Frame* 
 
 uint64_t Swapchain::Submit(CommandScheduler& scheduler) {
 	SubmitInfo submit;
-	submit.AddWait(m_image_acquired[m_frame_index], 1, vk::PipelineStageFlagBits::eTransfer);
+	// The acquired swapchain image may first be used by a transfer blit OR by
+	// the color-attachment filter pass. Waiting only at TRANSFER does not protect
+	// COLOR_ATTACHMENT_OUTPUT; use ALL_COMMANDS for both presentation paths.
+	submit.AddWait(m_image_acquired[m_frame_index], 1, vk::PipelineStageFlagBits::eAllCommands);
 	submit.AddSignal(m_render_complete[m_image_index]);
 	const auto tick = scheduler.Submit(submit);
 	if (m_frame_index < m_frame_ticks.size()) {
