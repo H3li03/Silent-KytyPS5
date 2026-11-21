@@ -1128,7 +1128,7 @@ void Swapchain::RecordPresentCommands(CommandBuffer& command, Presenter::Frame* 
 				std::fprintf(stream,
 				             "HDR path: source=%d source_hdr=%d swapchain_hdr=%d pq_to_sdr=%d "
 				             "filtered=%d source_format=%d swapchain_format=%d "
-				             "source_extent=%ux%u target_extent=%ux%u\\n",
+				             "source_extent=%ux%u target_extent=%ux%u\n",
 				             source != nullptr ? 1 : 0, source != nullptr && source->hdr ? 1 : 0,
 				             m_hdr_active ? 1 : 0, pq_to_sdr ? 1 : 0, filtered ? 1 : 0,
 				             source != nullptr ? static_cast<int>(source->image.format) : -1,
