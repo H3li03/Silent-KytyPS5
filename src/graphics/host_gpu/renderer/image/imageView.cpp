@@ -337,6 +337,19 @@ vk::ImageView Image::FindView(const ImageViewInfo& view_info) {
 		}
 		return nullptr;
 	}
+	// A storage view cannot request a usage bit absent from its backing image.
+	// Reject it before vkCreateImageView (VUID-VkImageViewCreateInfo-pNext-02662).
+	// Descriptor callers must provide a compatible storage shadow or fallback.
+	if (is_storage && !(image.usage & vk::ImageUsageFlagBits::eStorage)) {
+		static std::atomic<uint32_t> rejected_usage {0};
+		if (rejected_usage.fetch_add(1, std::memory_order_relaxed) < 16) {
+			std::fprintf(stderr,
+			             "KYTY_STORAGE_VIEW_USAGE_REJECTED: image_format=%d view_format=%d backing_usage=0x%x\\n",
+			             static_cast<int>(image.format), static_cast<int>(normalized.format),
+			             static_cast<unsigned>(static_cast<vk::ImageUsageFlags::MaskType>(image.usage)));
+		}
+		return nullptr;
+	}
 	for (const auto& cached: views) {
 		if (cached.info == normalized) {
 			return cached.view;
