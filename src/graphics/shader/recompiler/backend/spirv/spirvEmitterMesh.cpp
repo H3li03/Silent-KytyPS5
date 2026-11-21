@@ -32,6 +32,17 @@ MeshCull MeshCullMode() {
 	return mode;
 }
 
+// Diagnostic A/B for layered AMD mesh rendering. Keep the per-primitive Layer
+// interface and shader-module lifetime unchanged; only replace the exported
+// Layer value when explicitly requested. Default rendering is unaffected.
+bool ForceMeshLayerZero() {
+	static const bool enabled = [] {
+		const char* value = std::getenv("KYTY_MESH_LAYER_FORCE_ZERO");
+		return value != nullptr && std::strcmp(value, "1") == 0;
+	}();
+	return enabled;
+}
+
 uint32_t MeshArray(EmitterState& state, spv::StorageClass storage, uint32_t type, uint32_t count) {
 	const auto array = state.builder.Type(spv::OpTypeArray, type, ConstantU32(state, count));
 	return state.builder.DefineGlobalVariable(TypePointer(state, storage, array), storage);
@@ -503,7 +514,10 @@ void EmitMeshEntryPoint(EmitterState& state) {
 				state.builder.AddFunction(
 				    spv::OpAccessChain, TypePointer(state, spv::StorageClassOutput, TypeU32(state)),
 				    pointer, output.variable_id, index, ConstantU32(state, 0));
-				state.builder.AddFunction(spv::OpStore, pointer, layer);
+				// Isolate an incorrect guest Layer -> Vulkan array-layer translation
+				// without dropping the Layer interface (which can make AMD 3D black).
+				state.builder.AddFunction(spv::OpStore, pointer,
+				                          ForceMeshLayerZero() ? ConstantU32(state, 0) : layer);
 			}
 		});
 	}
