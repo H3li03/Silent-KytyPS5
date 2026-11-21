@@ -7404,8 +7404,13 @@ void TextureCache::RunNanScrub() {
 			continue;
 		}
 		tries++;
-		if ((candidate.frame != 0 && frame - candidate.frame < 30) ||
-		    image->ContentSerial() == candidate.serial) {
+		// UINT64_MAX marks a never-scrubbed candidate. Do not subtract it:
+		// unsigned wraparound can suppress the first repair on some frame values.
+		// A frame counter reset must also not suppress a newly written HDR image.
+		const bool recently_scrubbed = candidate.frame != UINT64_MAX &&
+		                              frame >= candidate.frame &&
+		                              frame - candidate.frame < 30;
+		if (recently_scrubbed || image->ContentSerial() == candidate.serial) {
 			continue;
 		}
 		const auto  total   = NanScrubBytes(*image);
