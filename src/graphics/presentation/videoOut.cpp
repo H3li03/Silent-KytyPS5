@@ -40,6 +40,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cstdio>
 #include <cstdlib>
 #include <fmt/format.h>
 #include <list>
@@ -53,6 +54,23 @@ struct GraphicContext;
 namespace Libs::VideoOut {
 
 LIB_NAME("VideoOut", "VideoOut");
+
+static bool GuestSdrMode() {
+	static const bool enabled = [] {
+		const char* value = std::getenv("KYTY_GUEST_SDR_MODE");
+		return value != nullptr && std::strcmp(value, "1") == 0;
+	}();
+	return enabled;
+}
+
+static bool VideoOutColorTrace() {
+	static const bool enabled = [] {
+		const char* value = std::getenv("KYTY_VIDEOOUT_COLOR_TRACE");
+		return value != nullptr && std::strcmp(value, "1") == 0;
+	}();
+	return enabled;
+}
+
 
 namespace EventQueue = LibKernel::EventQueue;
 
@@ -1620,6 +1638,17 @@ KYTY_SYSV_ABI int VideoOutRegisterBuffers2(int handle, int set_index, int buffer
 	     attribute->aspect_ratio, attribute->width, attribute->height, attribute->pitch_in_pixel,
 	     attribute->option, category);
 
+	if (VideoOutColorTrace()) {
+		static std::atomic<uint32_t> reports {0};
+		if (reports.fetch_add(1, std::memory_order_relaxed) < 24) {
+			std::fprintf(stderr,
+			             "VideoOut color buffer: format=0x%016" PRIx64 " hdr=%d option=0x%016" PRIx64 " size=%ux%u category=%d\n",
+			             attribute->pixel_format,
+			             Graphics::IsHdrVideoOutPixelFormat(attribute->pixel_format) ? 1 : 0,
+			             attribute->option, attribute->width, attribute->height, category);
+			std::fflush(stderr);
+		}
+	}
 	if (option != nullptr) {
 		return VIDEO_OUT_ERROR_INVALID_OPTION;
 	}
@@ -2010,7 +2039,19 @@ KYTY_SYSV_ABI int VideoOutGetOutputStatus(int handle, VideoOutOutputStatus* stat
 	// Primary output reports 4K unless param.json Video-out Info enables resolution detection.
 	status->resolution =
 	    ((attribute3 & 4) != 0 && driver.width < 3840 && driver.height < 2160 ? 1u : 2u);
-	status->dynamicRange = hdr_allowed && driver.IsHdrSupported() ? 2u : 1u;
+	const bool host_hdr_available = driver.IsHdrSupported();
+	status->dynamicRange = !GuestSdrMode() && hdr_allowed && host_hdr_available ? 2u : 1u;
+	if (VideoOutColorTrace()) {
+		static std::atomic<uint32_t> last_state {0xffffffffu};
+		const uint32_t state = (hdr_allowed ? 1u : 0u) | (host_hdr_available ? 2u : 0u) |
+		                       (GuestSdrMode() ? 4u : 0u);
+		if (last_state.exchange(state, std::memory_order_relaxed) != state) {
+			std::fprintf(stderr, "VideoOut color status: allowed=%d host_hdr=%d forced_sdr=%d range=%u\n",
+			             hdr_allowed ? 1 : 0, host_hdr_available ? 1 : 0,
+			             GuestSdrMode() ? 1 : 0, status->dynamicRange);
+			std::fflush(stderr);
+		}
+	}
 	status->refreshRate =
 	    (ctx->output_mode == VIDEO_OUT_OUTPUT_MODE_119_88HZ || Config::GetVblankFrequency() >= 119
 	         ? VIDEO_OUT_REFRESH_RATE_119_88HZ
