@@ -10841,6 +10841,28 @@ bool PipelineCache::BuildGraphicsPipelineKey(const PipelineTargets& targets, con
 		static_params.alpha_destblend[slot]      = bc.alpha_destblend;
 		static_params.separate_alpha_blend[slot] = bc.separate_alpha_blend;
 		static_params.blend_enable[slot]         = bc.enable && !rt.info.blend_bypass;
+		// Diagnostic A/B for the overexposed SDR scene: isolate accumulation in floating-point
+		// render targets without touching HDR selection, tone mapping or integer targets.
+		// Disabled by default. This is an experiment, not a color-correction fix.
+		static const bool float_blend_ab = [] {
+			const char* value = std::getenv("KYTY_FLOAT_RT_NO_BLEND");
+			return value != nullptr && std::strcmp(value, "1") == 0;
+		}();
+		if (float_blend_ab && static_params.blend_enable[slot] &&
+		    (color.format == vk::Format::eR16G16B16A16Sfloat ||
+		     color.format == vk::Format::eB10G11R11UfloatPack32 ||
+		     color.format == vk::Format::eR32G32B32A32Sfloat)) {
+			static std::atomic_uint suppressed {0};
+			const unsigned index = suppressed.fetch_add(1, std::memory_order_relaxed);
+			if (index < 16) {
+				Log::WriteToConsoleAndLog(fmt::format(
+				    "KYTY_FLOAT_RT_NO_BLEND: suppressed blend slot={} format={} "
+				    "src={} dst={} op={} (sample {} of 16)\\n",
+				    slot, static_cast<int>(color.format), bc.color_srcblend,
+				    bc.color_destblend, bc.color_comb_fcn, index + 1));
+			}
+			static_params.blend_enable[slot] = false;
+		}
 		if (BlendAlphaRemapEnabled()) {
 			// Upstream 73615c31f, 0bef3fc0d, 94e7d239d, 96011cc5c: logical alpha or the mapped
 			// source factors through MRT1 (ApplyDualSourceBlending), blended as the second source,
