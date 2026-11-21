@@ -383,33 +383,41 @@ uint32_t ExportVector(ValueEmitContext& ctx, uint32_t data, const IR::ExportInfo
 	auto&      state          = ctx.state;
 	const bool integer_output = vector_type != TypeF32Vector(state, 4);
 	if (exp.compr && !integer_output) {
-		// SPI_SHADER_COL_FORMAT of a compressed export: 5 UNORM16_ABGR, 6 SNORM16_ABGR,
-		// 8 SINT16_ABGR (not modelled: it would need an integer output), otherwise FP16_ABGR.
+		// SPI_SHADER_COL_FORMAT: 5 UNORM16_ABGR, 6 SNORM16_ABGR,
+		// 8 SINT16_ABGR; other compressed float exports carry FP16 pairs.
 		const auto mode   = MrtOutputMode(state, exp);
 		const auto unpack = mode == 5u   ? GLSLstd450UnpackUnorm2x16
 		                    : mode == 6u ? GLSLstd450UnpackSnorm2x16
 		                                 : GLSLstd450UnpackHalf2x16;
-		if (mode == 8u) {
-			static std::atomic_flag warned = ATOMIC_FLAG_INIT;
-			if (!warned.test_and_set(std::memory_order_relaxed)) {
-				std::fputs("Warning: SINT16_ABGR compressed color exports are unpacked as FP16.\n",
-				           stderr);
-			}
-		}
 		uint32_t f32[4] = {ConstantF32(state, 0), ConstantF32(state, 0), ConstantF32(state, 0),
 		                   ConstantF32(state, 0x3f800000u)};
 		for (uint32_t pair = 0; pair < 2u; pair++) {
 			if ((exp.en & (3u << (pair * 2u))) == 0u) {
 				continue;
 			}
-			const auto packed   = state.builder.AllocateId();
-			const auto unpacked = state.builder.AllocateId();
+			const auto packed = state.builder.AllocateId();
 			state.builder.AddFunction(spv::OpCompositeExtract, TypeU32(state), packed, data, pair);
-			state.builder.AddFunction(spv::OpExtInst, TypeF32Vector(state, 2), unpacked,
-			                          GlslStd450(state), unpack, packed);
+			uint32_t unpacked = 0;
+			if (mode != 8u) {
+				unpacked = state.builder.AllocateId();
+				state.builder.AddFunction(spv::OpExtInst, TypeF32Vector(state, 2), unpacked,
+				                          GlslStd450(state), unpack, packed);
+			}
 			for (uint32_t lane = 0; lane < 2u; lane++) {
 				const auto component = pair * 2u + lane;
-				if (((exp.en >> component) & 1u) != 0u) {
+				if (((exp.en >> component) & 1u) == 0u) {
+					continue;
+				}
+				if (mode == 8u) {
+					// SINT16 lanes are signed integers, not IEEE 754 half floats.
+					const auto signed_lane = state.builder.AllocateId();
+					state.builder.AddFunction(spv::OpBitFieldSExtract, TypeU32(state), signed_lane,
+					                          packed, ConstantU32(state, lane * 16u),
+					                          ConstantU32(state, 16u));
+					f32[component] = state.builder.AllocateId();
+					state.builder.AddFunction(spv::OpConvertSToF, TypeF32(state), f32[component],
+					                          signed_lane);
+				} else {
 					f32[component] = state.builder.AllocateId();
 					state.builder.AddFunction(spv::OpCompositeExtract, TypeF32(state),
 					                          f32[component], unpacked, lane);
