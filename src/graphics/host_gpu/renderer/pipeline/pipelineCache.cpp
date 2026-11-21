@@ -10857,7 +10857,7 @@ bool PipelineCache::BuildGraphicsPipelineKey(const PipelineTargets& targets, con
 			if (index < 16) {
 				Log::WriteToConsoleAndLog(fmt::format(
 				    "KYTY_FLOAT_RT_NO_BLEND: suppressed blend slot={} format={} "
-				    "src={} dst={} op={} (sample {} of 16)\\n",
+				    "src={} dst={} op={} (sample {} of 16)\n",
 				    slot, static_cast<int>(color.format), bc.color_srcblend,
 				    bc.color_destblend, bc.color_comb_fcn, index + 1));
 			}
