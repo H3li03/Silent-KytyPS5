@@ -3628,7 +3628,7 @@ void RenderExecutor::DrawRunTargets(CommandBuffer& buffer, const DrawCallInfo& d
 					static std::atomic<uint32_t> invalid_mrt_logged {0};
 					if (invalid_mrt_logged.fetch_add(1, std::memory_order_relaxed) < 32) {
 						Log::WriteColorPathProbe(fmt::format(
-						    "KYTY_COLOR_INVALID_EXPORT_LOCATION index={} location={}\\n",
+						    "KYTY_COLOR_INVALID_EXPORT_LOCATION index={} location={}\n",
 						    output.index, output.location));
 					}
 				}
@@ -3725,7 +3725,7 @@ void RenderExecutor::DrawRunTargets(CommandBuffer& buffer, const DrawCallInfo& d
 			const auto& ctx = buffer.GetRegisters();
 			Log::WriteColorPathProbe(fmt::format(
 			    "KYTY_COLOR_PATH_UNRESOLVED requested=0x{:x} resolved=0x{:x} missing=0x{:x} "
-			    "target_mask=0x{:x} shader_mask=0x{:x} count={}\\n",
+			    "target_mask=0x{:x} shader_mask=0x{:x} count={}\n",
 			    mrt_mask, resolved_mask, unresolved_mask, ctx.GetRenderTargetMask(),
 			    ctx.GetShaderRegisters().m_cbShaderMask, state.color_count));
 		}
