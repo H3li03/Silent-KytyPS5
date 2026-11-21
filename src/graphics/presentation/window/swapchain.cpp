@@ -1171,6 +1171,18 @@ void Swapchain::RecordPresentCommands(CommandBuffer& command, Presenter::Frame* 
 	if (filtered) {
 		m_filter.Record(m_window.graphic_ctx.device, vk_command, source->view, 0, source_extent,
 		                m_image_views[m_image_index], m_format, m_extent, pq_to_sdr);
+	} else if (source != nullptr && source->image.extent.width == game_rect.extent.width &&
+	           source->image.extent.height == game_rect.extent.height &&
+	           game_rect.offset.x == 0 && game_rect.offset.y == 0 &&
+	           source->image.format == m_format) {
+		// A 1:1 transfer between identical formats must preserve encoded pixels.
+		// Avoid the filtering/conversion semantics of vkCmdBlitImage.
+		vk::ImageCopy region {};
+		region.srcSubresource = {vk::ImageAspectFlagBits::eColor, 0, 0, 1};
+		region.dstSubresource = {vk::ImageAspectFlagBits::eColor, 0, 0, 1};
+		region.extent = {source->image.extent.width, source->image.extent.height, 1};
+		vk_command.copyImage(source->image.image, vk::ImageLayout::eTransferSrcOptimal,
+		                     m_images[m_image_index], vk::ImageLayout::eTransferDstOptimal, region);
 	} else if (source != nullptr) {
 		vk::ImageBlit region {};
 		region.srcSubresource.aspectMask     = vk::ImageAspectFlagBits::eColor;
