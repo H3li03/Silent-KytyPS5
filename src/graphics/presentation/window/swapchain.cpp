@@ -1452,6 +1452,27 @@ Presenter::Frame& Presenter::PrepareFrame(CommandBuffer& buffer, const ImageInfo
 	}
 	frame->Configure(m_impl->window.graphic_ctx,
 	                 {image.backing.extent.width, image.backing.extent.height}, frame_format);
+	// KYTY_PRESENT_SOURCE_TRACE=1: identify the exact guest image copied into the
+	// presentation frame. Metadata only: no GPU readback or rendering changes.
+	static const bool trace_source = [] {
+		const char* value = std::getenv("KYTY_PRESENT_SOURCE_TRACE");
+		return value != nullptr && value[0] != '\0' && value[0] != '0';
+	}();
+	if (trace_source) {
+		static std::atomic<uint64_t> seen {0};
+		const auto n = seen.fetch_add(1, std::memory_order_relaxed);
+		if (n < 256 || (n % 120) == 0) {
+			LOGF("KYTY_PRESENT_SOURCE frame=%llu seq=%llu guest_addr=0x%llx guest_extent=%ux%u "
+			     "guest_format=%s backing_format=%s backing_extent=%ux%u copy_format=%s hdr=%u headset=%u\\n",
+			     static_cast<unsigned long long>(m_impl->renderer.GetGpu().GetFrameNum()),
+			     static_cast<unsigned long long>(n),
+			     static_cast<unsigned long long>(info.data.address), info.extent.width, info.extent.height,
+			     vk::to_string(info.pixel_format).c_str(), vk::to_string(image.backing.format).c_str(),
+			     image.backing.extent.width, image.backing.extent.height,
+			     vk::to_string(frame_format).c_str(), static_cast<unsigned>(hdr),
+			     static_cast<unsigned>(headset));
+		}
+	}
 	frame->CopyFrom(buffer, image);
 	FrameDump(m_impl->renderer, buffer, *frame);
 	if (headset) {
