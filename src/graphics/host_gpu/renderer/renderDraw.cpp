@@ -3620,7 +3620,18 @@ void RenderExecutor::DrawRunTargets(CommandBuffer& buffer, const DrawCallInfo& d
 	if (state.ps_active) {
 		for (const auto& output: state.ps_input_info.stage.program->info.outputs) {
 			if (output.kind == ShaderRecompiler::IR::StageOutputKind::Mrt) {
-				mrt_mask |= 1u << output.location; // the colour target (KYTY_CB_SHADER_MASK_EXPORTS)
+				// SPIR-V colour locations are limited to the renderer's attachment slots.
+				// Never shift by an out-of-range shader location (undefined behaviour).
+				if (output.location < RENDER_COLOR_ATTACHMENTS_MAX) {
+					mrt_mask |= 1u << output.location; // the colour target (KYTY_CB_SHADER_MASK_EXPORTS)
+				} else {
+					static std::atomic<uint32_t> invalid_mrt_logged {0};
+					if (invalid_mrt_logged.fetch_add(1, std::memory_order_relaxed) < 32) {
+						Log::WriteColorPathProbe(fmt::format(
+						    "KYTY_COLOR_INVALID_EXPORT_LOCATION index={} location={}\\n",
+						    output.index, output.location));
+					}
+				}
 			}
 		}
 	}
@@ -3695,6 +3706,28 @@ void RenderExecutor::DrawRunTargets(CommandBuffer& buffer, const DrawCallInfo& d
 			if (entry.image_id) {
 				state.color_count++;
 			}
+		}
+	}
+	// KYTY_COLOR_PATH_CROSSCHECK: correlate *all* shader colour locations with
+	// resolved attachments. The earlier MRT0-only counters could miss MRT1..7
+	// being routed to an absent attachment, a plausible HDR/compositor failure.
+	if (state.ps_active) {
+		static std::atomic<uint32_t> crosscheck_logged {0};
+		uint32_t resolved_mask = 0;
+		for (uint32_t i = 0; i < state.color_count; ++i) {
+			if (state.color_info[i].target_slot < RENDER_COLOR_ATTACHMENTS_MAX) {
+				resolved_mask |= 1u << state.color_info[i].target_slot;
+			}
+		}
+		const uint32_t unresolved_mask = mrt_mask & ~resolved_mask;
+		if (unresolved_mask != 0 &&
+		    crosscheck_logged.fetch_add(1, std::memory_order_relaxed) < 128) {
+			const auto& ctx = buffer.GetRegisters();
+			Log::WriteColorPathProbe(fmt::format(
+			    "KYTY_COLOR_PATH_UNRESOLVED requested=0x{:x} resolved=0x{:x} missing=0x{:x} "
+			    "target_mask=0x{:x} shader_mask=0x{:x} count={}\\n",
+			    mrt_mask, resolved_mask, unresolved_mask, ctx.GetRenderTargetMask(),
+			    ctx.GetShaderRegisters().m_cbShaderMask, state.color_count));
 		}
 	}
 	// Correlate a fragment MRT0 export with a missing resolved color attachment.
