@@ -1106,6 +1106,31 @@ void Swapchain::RecordPresentCommands(CommandBuffer& command, Presenter::Frame* 
 	const bool pq_to_sdr = source != nullptr && source->hdr && !m_hdr_active && PqToSdrEnabled();
 	const bool filtered  = source != nullptr && (pq_to_sdr || (PresentBoxDownscaleEnabled() &&
 	                                                           PresentNeedsFilter(source_extent, m_extent)));
+	// Report each observed HDR presentation path once. This distinguishes source encoding
+	// from swapchain color space and confirms whether PQ-to-SDR is actually selected.
+	// KYTY_HDR_PATH_TRACE=1 enables the diagnostic without changing presentation.
+	static const bool trace_hdr_path = [] {
+		const auto* value = std::getenv("KYTY_HDR_PATH_TRACE");
+		return value != nullptr && std::strcmp(value, "1") == 0;
+	}();
+	if (trace_hdr_path) {
+		static std::atomic<uint32_t> reported_paths {0};
+		const uint32_t path = (source != nullptr ? 1u : 0u) |
+		                      (source != nullptr && source->hdr ? 2u : 0u) |
+		                      (m_hdr_active ? 4u : 0u) | (pq_to_sdr ? 8u : 0u) |
+		                      (filtered ? 16u : 0u);
+		const uint32_t bit = 1u << path;
+		if ((reported_paths.fetch_or(bit, std::memory_order_relaxed) & bit) == 0) {
+			LOGF("HDR path: source=%d source_hdr=%d swapchain_hdr=%d pq_to_sdr=%d "
+			     "filtered=%d source_format=%d swapchain_format=%d source_extent=%ux%u "
+			     "target_extent=%ux%u\n",
+			     source != nullptr ? 1 : 0, source != nullptr && source->hdr ? 1 : 0,
+			     m_hdr_active ? 1 : 0, pq_to_sdr ? 1 : 0, filtered ? 1 : 0,
+			     source != nullptr ? static_cast<int>(source->image.format) : -1,
+			     static_cast<int>(m_format), source_extent.width, source_extent.height,
+			     m_extent.width, m_extent.height);
+		}
+	}
 	if (filtered) {
 		if (source->view == nullptr) {
 			vk::ImageViewCreateInfo view {};
