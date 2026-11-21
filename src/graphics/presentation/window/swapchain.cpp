@@ -373,21 +373,14 @@ vk::SurfaceFormatKHR Swapchain::SelectFormat() {
 		           graphics.GetFormatProperties(candidate.format).optimalTilingFeatures &
 		           vk::FormatFeatureFlagBits::eBlitDst);
 	});
-	// KYTY_HDR_SAFE_SDR_SWAPCHAIN=1: keep the launcher's HDR setting but force an
-	// SDR presentation surface. This is an opt-in recovery path for white HDR10 output,
-	// not HDR tone mapping; it also prevents reporting HDR support to VideoOut.
-	static const bool safe_sdr_swapchain = [] {
-		const char* value = std::getenv("KYTY_HDR_SAFE_SDR_SWAPCHAIN");
-		return value != nullptr && std::strcmp(value, "1") == 0;
-	}();
-	m_hdr_supported = !safe_sdr_swapchain && Config::HdrEnabled() && hdr_format != formats.end();
+	m_hdr_supported = Config::HdrEnabled() && hdr_format != formats.end();
 	m_hdr_active    = m_hdr_requested && IsHdrSupported();
-	if (safe_sdr_swapchain && Config::HdrEnabled()) {
-		static std::atomic_bool logged {false};
-		if (!logged.exchange(true)) {
-			LOGF("HDR safe SDR swapchain: forced SDR presentation while launcher HDR is enabled; "
-			     "HDR10 output disabled (KYTY_HDR_SAFE_SDR_SWAPCHAIN=1)\n");
-		}
+	if (Config::HdrEnabled()) {
+		LOGF("HDR selection: requested=%d available=%d active=%d surface_format=%d "
+		     "surface_colorspace=%d\n",
+		     m_hdr_requested ? 1 : 0, IsHdrSupported() ? 1 : 0, m_hdr_active ? 1 : 0,
+		     m_hdr_active ? static_cast<int>(hdr_format->format) : -1,
+		     m_hdr_active ? static_cast<int>(hdr_format->colorSpace) : -1);
 	}
 	if (m_hdr_active) {
 		return *hdr_format;
@@ -1118,6 +1111,17 @@ void Swapchain::RecordPresentCommands(CommandBuffer& command, Presenter::Frame* 
 	                      : vk::Extent2D {};
 	// An HDR10 frame on an SDR window is converted by the filter pass (KYTY_HDR_TO_SDR).
 	const bool pq_to_sdr = source != nullptr && source->hdr && !m_hdr_active && PqToSdrEnabled();
+	// An SDR frame on an HDR10 swapchain currently reaches the PQ surface without
+	// an SDR-to-PQ transfer function. Record this mismatch explicitly rather than
+	// silently treating Vulkan's format conversion as color-space conversion.
+	if (source != nullptr && m_hdr_active && !source->hdr) {
+		static std::atomic_bool reported_sdr_hdr_mismatch {false};
+		if (!reported_sdr_hdr_mismatch.exchange(true)) {
+			LOGF("HDR encoding mismatch: SDR source sent to HDR10 PQ swapchain; "
+			     "source_format=%d swapchain_format=%d (missing SDR-to-PQ transform)\n",
+			     static_cast<int>(source->image.format), static_cast<int>(m_format));
+		}
+	}
 	const bool filtered  = source != nullptr && (pq_to_sdr || (PresentBoxDownscaleEnabled() &&
 	                                                           PresentNeedsFilter(source_extent, m_extent)));
 	// Report each observed HDR presentation path once. This distinguishes source encoding
