@@ -10846,12 +10846,43 @@ bool PipelineCache::BuildGraphicsPipelineKey(const PipelineTargets& targets, con
 		// Disabled by default. This is an experiment, not a color-correction fix.
 		static const bool float_blend_ab = [] {
 			const char* value = std::getenv("KYTY_FLOAT_RT_NO_BLEND");
-			return value != nullptr && std::strcmp(value, "1") == 0;
+			const bool enabled = value != nullptr && std::strcmp(value, "1") == 0;
+			if (FILE* out = std::fopen("kyty-float-blend-diagnostic.txt", "w")) {
+				std::fprintf(out, "KYTY_FLOAT_RT_NO_BLEND raw=%s enabled=%d\\n",
+				             value != nullptr ? value : "<unset>", enabled ? 1 : 0);
+				std::fclose(out);
+			}
+			return enabled;
 		}();
-		if (float_blend_ab && static_params.blend_enable[slot] &&
-		    (color.format == vk::Format::eR16G16B16A16Sfloat ||
-		     color.format == vk::Format::eB10G11R11UfloatPack32 ||
-		     color.format == vk::Format::eR32G32B32A32Sfloat)) {
+		const bool float_rt = color.format == vk::Format::eR16G16B16A16Sfloat ||
+		                      color.format == vk::Format::eB10G11R11UfloatPack32 ||
+		                      color.format == vk::Format::eR32G32B32A32Sfloat;
+		static std::atomic_uint64_t float_rt_seen {0};
+		static std::atomic_uint64_t float_blend_seen {0};
+		static std::atomic_uint64_t float_blend_suppressed {0};
+		if (float_rt) {
+			float_rt_seen.fetch_add(1, std::memory_order_relaxed);
+			if (static_params.blend_enable[slot]) {
+				float_blend_seen.fetch_add(1, std::memory_order_relaxed);
+			}
+		}
+		if (float_blend_ab && static_params.blend_enable[slot] && float_rt) {
+			float_blend_suppressed.fetch_add(1, std::memory_order_relaxed);
+		}
+		const uint64_t seen = float_rt_seen.load(std::memory_order_relaxed);
+		if (float_rt && (seen == 1 || (seen & (seen - 1)) == 0)) {
+			static std::mutex diagnostic_mutex;
+			std::lock_guard<std::mutex> lock(diagnostic_mutex);
+			if (FILE* out = std::fopen("kyty-float-blend-diagnostic.txt", "a")) {
+				std::fprintf(out, "float_rt=%llu blend_enabled=%llu suppressed=%llu slot=%u format=%d\\n",
+				             static_cast<unsigned long long>(seen),
+				             static_cast<unsigned long long>(float_blend_seen.load(std::memory_order_relaxed)),
+				             static_cast<unsigned long long>(float_blend_suppressed.load(std::memory_order_relaxed)),
+				             slot, static_cast<int>(color.format));
+				std::fclose(out);
+			}
+		}
+		if (float_blend_ab && static_params.blend_enable[slot] && float_rt) {
 			static std::atomic_uint suppressed {0};
 			const unsigned index = suppressed.fetch_add(1, std::memory_order_relaxed);
 			if (index < 16) {
