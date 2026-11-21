@@ -11353,6 +11353,13 @@ PipelineCache::Pipeline* PipelineCache::GetGraphicsPipelineImpl(
 						return vk::Result::eSuccess;
 					}
 				}
+				// The probe is also a Vulkan graphics pipeline creation call. Pin every
+				// stage across it, just as in the AMD synchronous creation path.
+				auto module_pins = ShaderModulePins::Capture(m_graphics.device, info.pStages, info.stageCount);
+				if (module_pins == nullptr) {
+					PipelineCacheLog("Graphics pipeline probe: rejected unpinnable shader module");
+					return vk::Result::eErrorInitializationFailed;
+				}
 				auto probe_info = info;
 				probe_info.flags |= vk::PipelineCreateFlagBits::eFailOnPipelineCompileRequired;
 				const auto made = PipelineFeedback::CreateGraphics(m_graphics.device, m_driver_cache, probe_info,
