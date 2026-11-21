@@ -7295,7 +7295,7 @@ bool TextureCache::ClearFromKnownFill(ImageId id) {
 	return true;
 }
 
-// KYTY_NAN_SCRUB=1 (default off, read once; adapted from usa-ratt/KytyPS5-GT7 9bbca0635 and the
+// KYTY_NAN_SCRUB=0 disables the HDR probe scrub (default on for this experiment; adapted from usa-ratt/KytyPS5-GT7 9bbca0635 and the
 // scan of c5511faad, without its NaN-count diagnostics): the B10G11R11 and half-float arrays of six
 // layers or more that the GPU writes (light probes, cube maps), up to KYTY_NAN_SCRUB_MB (default
 // 64) in all their mips, have their texels that are not finite rewritten on the GPU at a frame end
@@ -7306,7 +7306,9 @@ bool TextureCache::ClearFromKnownFill(ImageId id) {
 static bool NanScrubEnabled() {
 	static constexpr auto enabled_init = [] {
 		const char* value = std::getenv("KYTY_NAN_SCRUB");
-		return value != nullptr && value[0] == '1';
+		// Limit the default repair to the existing eligible HDR probe/cubemap shapes.
+		// Explicit KYTY_NAN_SCRUB=0 retains the previous behavior for A/B testing.
+		return value == nullptr || value[0] != '0';
 	};
 	static constinit Common::StaticOnce<std::remove_cvref_t<decltype(enabled_init())>> enabled_once;
 	const bool& enabled = enabled_once.Get(enabled_init);
