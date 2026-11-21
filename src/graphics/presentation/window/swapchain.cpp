@@ -26,6 +26,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -1461,6 +1462,17 @@ Presenter::Frame& Presenter::PrepareFrame(CommandBuffer& buffer, const ImageInfo
 		static std::atomic<uint64_t> seen {0};
 		const auto n = seen.fetch_add(1, std::memory_order_relaxed);
 		if (n < 256 || (n % 120) == 0) {
+			// Write independently of the emulator logger (which may filter this channel).
+			if (auto* direct = std::fopen("kyty-present-trace.txt", "a")) {
+				std::fprintf(direct, "SOURCE frame=%llu seq=%llu addr=0x%llx extent=%ux%u "
+				             "format=%u backing=%u hdr=%u\n",
+				             static_cast<unsigned long long>(m_impl->renderer.GetGpu().GetFrameNum()),
+				             static_cast<unsigned long long>(n),
+				             static_cast<unsigned long long>(info.data.address), info.extent.width,
+				             info.extent.height, static_cast<unsigned>(info.pixel_format),
+				             static_cast<unsigned>(image.backing.format), static_cast<unsigned>(hdr));
+				std::fclose(direct);
+			}
 			LOGF("KYTY_PRESENT_SOURCE frame=%llu seq=%llu guest_addr=0x%llx guest_extent=%ux%u "
 			     "guest_format=%s backing_format=%s backing_extent=%ux%u copy_format=%s hdr=%u headset=%u\n",
 			     static_cast<unsigned long long>(m_impl->renderer.GetGpu().GetFrameNum()),
@@ -1569,6 +1581,19 @@ void Presenter::ClearLayer(int bus) {
 }
 
 void Presenter::Impl::Present() {
+	// Direct-file breadcrumb to distinguish no present calls from logger filtering.
+	static std::atomic<uint64_t> present_calls {0};
+	const auto present_seq = present_calls.fetch_add(1, std::memory_order_relaxed);
+	if (present_seq < 16 || (present_seq % 120) == 0) {
+		if (auto* direct = std::fopen("kyty-present-trace.txt", "a")) {
+			std::fprintf(direct, "PRESENT seq=%llu main=%u blank=%u hdr=%u\n",
+			             static_cast<unsigned long long>(present_seq),
+			             static_cast<unsigned>(layers[0].frame != nullptr),
+			             static_cast<unsigned>(layers[0].frame != nullptr && layers[0].frame->blank),
+			             static_cast<unsigned>(layers[0].frame != nullptr && layers[0].frame->hdr));
+			std::fclose(direct);
+		}
+	}
 	KYTY_PROFILER_FUNCTION();
 	using Common::DebugCounters::Counter;
 	using Common::DebugCounters::ScopedTimer;
