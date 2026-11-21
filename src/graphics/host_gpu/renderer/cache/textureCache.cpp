@@ -7415,7 +7415,10 @@ void TextureCache::RunNanScrub() {
 		const bool recently_scrubbed = candidate.frame != UINT64_MAX &&
 		                              frame >= candidate.frame &&
 		                              frame - candidate.frame < 30;
-		if (recently_scrubbed || image->ContentSerial() == candidate.serial) {
+		// A newly registered candidate has no successful scrub, even when the
+		// image's initial content serial is zero.
+		if (recently_scrubbed ||
+		    (candidate.frame != UINT64_MAX && image->ContentSerial() == candidate.serial)) {
 			continue;
 		}
 		const auto  total   = NanScrubBytes(*image);
