@@ -10844,19 +10844,24 @@ bool PipelineCache::BuildGraphicsPipelineKey(const PipelineTargets& targets, con
 		// Diagnostic A/B for the overexposed SDR scene: isolate accumulation in floating-point
 		// render targets without touching HDR selection, tone mapping or integer targets.
 		// Disabled by default. This is an experiment, not a color-correction fix.
-		static const bool float_blend_ab = [] {
+		static const int float_blend_mode = [] {
 			const char* value = std::getenv("KYTY_FLOAT_RT_NO_BLEND");
-			const bool enabled = value != nullptr && std::strcmp(value, "1") == 0;
+			const int mode = value != nullptr && std::strcmp(value, "1") == 0 ? 1
+			               : value != nullptr && std::strcmp(value, "97") == 0 ? 97
+			               : value != nullptr && std::strcmp(value, "122") == 0 ? 122 : 0;
 			if (FILE* out = std::fopen("kyty-float-blend-diagnostic.txt", "w")) {
-				std::fprintf(out, "KYTY_FLOAT_RT_NO_BLEND raw=%s enabled=%d\n",
-				             value != nullptr ? value : "<unset>", enabled ? 1 : 0);
+				std::fprintf(out, "KYTY_FLOAT_RT_NO_BLEND raw=%s enabled=%d mode=%d\n",
+				             value != nullptr ? value : "<unset>", mode != 0 ? 1 : 0, mode);
 				std::fclose(out);
 			}
-			return enabled;
+			return mode;
 		}();
 		const bool float_rt = color.format == vk::Format::eR16G16B16A16Sfloat ||
 		                      color.format == vk::Format::eB10G11R11UfloatPack32 ||
 		                      color.format == vk::Format::eR32G32B32A32Sfloat;
+		const bool suppress_float_blend = float_blend_mode == 1 && float_rt ||
+		                                  float_blend_mode == 97 && color.format == vk::Format::eR16G16B16A16Sfloat ||
+		                                  float_blend_mode == 122 && color.format == vk::Format::eB10G11R11UfloatPack32;
 		static std::atomic_uint64_t float_rt_seen {0};
 		static std::atomic_uint64_t float_blend_seen {0};
 		static std::atomic_uint64_t float_blend_suppressed {0};
@@ -10866,7 +10871,7 @@ bool PipelineCache::BuildGraphicsPipelineKey(const PipelineTargets& targets, con
 				float_blend_seen.fetch_add(1, std::memory_order_relaxed);
 			}
 		}
-		if (float_blend_ab && static_params.blend_enable[slot] && float_rt) {
+		if (suppress_float_blend && static_params.blend_enable[slot]) {
 			float_blend_suppressed.fetch_add(1, std::memory_order_relaxed);
 		}
 		const uint64_t seen = float_rt_seen.load(std::memory_order_relaxed);
@@ -10882,7 +10887,7 @@ bool PipelineCache::BuildGraphicsPipelineKey(const PipelineTargets& targets, con
 				std::fclose(out);
 			}
 		}
-		if (float_blend_ab && static_params.blend_enable[slot] && float_rt) {
+		if (suppress_float_blend && static_params.blend_enable[slot]) {
 			static std::atomic_uint suppressed {0};
 			const unsigned index = suppressed.fetch_add(1, std::memory_order_relaxed);
 			if (index < 16) {
