@@ -1463,7 +1463,7 @@ Presenter::Frame& Presenter::PrepareFrame(CommandBuffer& buffer, const ImageInfo
 		const auto n = seen.fetch_add(1, std::memory_order_relaxed);
 		if (n < 256 || (n % 120) == 0) {
 			LOGF("KYTY_PRESENT_SOURCE frame=%llu seq=%llu guest_addr=0x%llx guest_extent=%ux%u "
-			     "guest_format=%s backing_format=%s backing_extent=%ux%u copy_format=%s hdr=%u headset=%u\\n",
+			     "guest_format=%s backing_format=%s backing_extent=%ux%u copy_format=%s hdr=%u headset=%u\n",
 			     static_cast<unsigned long long>(m_impl->renderer.GetGpu().GetFrameNum()),
 			     static_cast<unsigned long long>(n),
 			     static_cast<unsigned long long>(info.data.address), info.extent.width, info.extent.height,
