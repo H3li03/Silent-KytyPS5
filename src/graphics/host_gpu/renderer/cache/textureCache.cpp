@@ -7816,19 +7816,21 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_format, RepeatLookup
 			ImageId    placed_in  = {};
 			bool       placed_raw = false; // placed against the binding's own address
 			for (const auto candidate: candidates) {
-				if (!placement) {
-					view_mip   = -1;
-					view_layer = -1;
-				}
+				// A later overlap candidate is resolved against the already merged
+				// container. Preserve the original view's mip/layer unless that
+				// candidate identifies a new subresource. Otherwise a sampled
+				// nonzero mip may silently become mip zero (upstream 4cfdc862ef).
 				const auto& merged_info = result ? m_slot_images[result].info : desc.info;
 				const bool  direct      = merged_info.data.address == desc.info.data.address;
 				const auto  overlap     = ResolveOverlap(merged_info, desc.type, candidate, result);
 				if (overlap.image) {
 					result = overlap.image;
-					if (!placement || overlap.mip >= 0 || overlap.layer >= 0) {
-						view_mip   = overlap.mip;
-						view_layer = overlap.layer;
-					}
+				}
+				if (overlap.mip >= 0) {
+					view_mip   = overlap.mip;
+					view_layer = overlap.layer;
+				}
+				if (overlap.image) {
 					placed_in  = overlap.mip >= 0 || overlap.layer >= 0 ? overlap.image : ImageId {};
 					placed_raw = direct;
 				}
