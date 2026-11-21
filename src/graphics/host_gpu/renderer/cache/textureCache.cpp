@@ -7306,9 +7306,9 @@ bool TextureCache::ClearFromKnownFill(ImageId id) {
 static bool NanScrubEnabled() {
 	static constexpr auto enabled_init = [] {
 		const char* value = std::getenv("KYTY_NAN_SCRUB");
-		// Limit the default repair to the existing eligible HDR probe/cubemap shapes.
-		// Explicit KYTY_NAN_SCRUB=0 retains the previous behavior for A/B testing.
-		return value == nullptr || value[0] != '0';
+		// The previous default-on experiment did not change the white-screen symptom.
+		// Keep this expensive GPU read/modify/write path opt-in until validated.
+		return value != nullptr && value[0] == '1';
 	};
 	static constinit Common::StaticOnce<std::remove_cvref_t<decltype(enabled_init())>> enabled_once;
 	const bool& enabled = enabled_once.Get(enabled_init);
