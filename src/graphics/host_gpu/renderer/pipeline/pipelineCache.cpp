@@ -10888,7 +10888,7 @@ bool PipelineCache::BuildGraphicsPipelineKey(const PipelineTargets& targets, con
 				static std::mutex adjusted_mutex;
 				std::lock_guard<std::mutex> lock(adjusted_mutex);
 				if (FILE* out = std::fopen("kyty-float-blend-diagnostic.txt", "a")) {
-					std::fprintf(out, "mode973_adjusted=%llu slot=%u format=%d\\n",
+					std::fprintf(out, "mode973_adjusted=%llu slot=%u format=%d\n",
 					             static_cast<unsigned long long>(count), slot, static_cast<int>(color.format));
 					std::fclose(out);
 				}
