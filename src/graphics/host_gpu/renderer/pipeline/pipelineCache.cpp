@@ -10848,7 +10848,9 @@ bool PipelineCache::BuildGraphicsPipelineKey(const PipelineTargets& targets, con
 			const char* value = std::getenv("KYTY_FLOAT_RT_NO_BLEND");
 			const int mode = value != nullptr && std::strcmp(value, "1") == 0 ? 1
 			               : value != nullptr && std::strcmp(value, "97") == 0 ? 97
-			               : value != nullptr && std::strcmp(value, "122") == 0 ? 122 : 0;
+			               : value != nullptr && std::strcmp(value, "122") == 0 ? 122
+			               : value != nullptr && std::strcmp(value, "971") == 0 ? 971
+			               : value != nullptr && std::strcmp(value, "972") == 0 ? 972 : 0;
 			if (FILE* out = std::fopen("kyty-float-blend-diagnostic.txt", "w")) {
 				std::fprintf(out, "KYTY_FLOAT_RT_NO_BLEND raw=%s enabled=%d mode=%d\n",
 				             value != nullptr ? value : "<unset>", mode != 0 ? 1 : 0, mode);
@@ -10861,7 +10863,11 @@ bool PipelineCache::BuildGraphicsPipelineKey(const PipelineTargets& targets, con
 		                      color.format == vk::Format::eR32G32B32A32Sfloat;
 		const bool suppress_float_blend = float_blend_mode == 1 && float_rt ||
 		                                  float_blend_mode == 97 && color.format == vk::Format::eR16G16B16A16Sfloat ||
-		                                  float_blend_mode == 122 && color.format == vk::Format::eB10G11R11UfloatPack32;
+		                                  float_blend_mode == 122 && color.format == vk::Format::eB10G11R11UfloatPack32 ||
+		                                  float_blend_mode == 971 && color.format == vk::Format::eR16G16B16A16Sfloat &&
+		                                      bc.color_srcblend == 1 && bc.color_destblend == 4 && bc.color_comb_fcn == 0 ||
+		                                  float_blend_mode == 972 && color.format == vk::Format::eR16G16B16A16Sfloat &&
+		                                      bc.color_srcblend == 1 && bc.color_destblend == 1 && bc.color_comb_fcn == 0;
 		static std::atomic_uint64_t float_rt_seen {0};
 		static std::atomic_uint64_t float_blend_seen {0};
 		static std::atomic_uint64_t float_blend_suppressed {0};
