@@ -8245,6 +8245,27 @@ void RenderExecutor::ExecutePreparedDraw(uint64_t submit_id, CommandBuffer& buff
 	}
 	CommitStats::StepMark(CommitStats::Step::Begin);
 	// Vulkan debug labels (--rd / KYTY_TRACE_VK_LABELS): the draw's shaders and game pass.
+	// Read-only PS/draw attachment correlation. Bounded independently of the acquisition probe.
+	// Compare ps_hash with KYTY_COLOR_PATH_PROBE pixel_export shader hashes; no GPU state is changed.
+	{
+		static std::atomic_uint ps_draw_attachment_logged {0};
+		if (ps_draw_attachment_logged.fetch_add(1, std::memory_order_relaxed) < 512) {
+			uint32_t populated = 0;
+			for (uint32_t slot = 0; slot < rendering.num_color_attachments; ++slot) {
+				if (rendering.color_attachments[slot].image_view != nullptr) {
+					populated |= 1u << slot;
+				}
+			}
+			const uint64_t ps_hash = state.ps_active && state.ps_input_info.stage.program != nullptr
+			                             ? state.ps_input_info.stage.program->shader_hash : 0;
+			Log::WriteColorPathProbe(fmt::format(
+			    "KYTY_PS_DRAW_ATTACHMENTS n={} ps_active={} ps_hash=0x{:016x} span={} populated=0x{:08x} depth={} color_write_ext={}\\n",
+			    ps_draw_attachment_logged.load(std::memory_order_relaxed) - 1,
+			    static_cast<unsigned>(state.ps_active), ps_hash, rendering.num_color_attachments,
+			    populated, static_cast<unsigned>(rendering.depth_stencil_attachment.image_view != nullptr),
+			    static_cast<unsigned>(buffer.GetGraphics().color_write_enable_enabled)));
+		}
+	}
 	const bool draw_label = PassCensus::LabelsEnabled();
 	// KYTY_DRAW_SKIP_VS / KYTY_DRAW_SKIP_PS (diagnostic, live, default off): draws with one of these
 	// programs record their state but emit no draw command (to see which object a draw renders).
