@@ -1433,6 +1433,82 @@ static void FrameDump(RenderContext& renderer, CommandBuffer& command_buffer, Pr
 	    });
 }
 
+// Diagnostic-only GPU readback: compare the same 16x16 pixels before and after
+// the video-out copy. Both SRGB and UNORM BGRA8 have identical byte layout.
+void ComparePresentationCopy(RenderContext& renderer, CommandBuffer& command_buffer, Image& source,
+                             Presenter::Frame& frame, uint64_t address) {
+	if ((source.backing.format != vk::Format::eB8G8R8A8Srgb &&
+	     source.backing.format != vk::Format::eB8G8R8A8Unorm) ||
+	    frame.image.format != vk::Format::eB8G8R8A8Unorm) return;
+	static std::atomic<uint64_t> calls {0};
+	const auto n = calls.fetch_add(1, std::memory_order_relaxed);
+	if (n % 120 != 0) return;
+	constexpr uint32_t side = 16, slots = 16;
+	constexpr uint64_t plane = side * side * 4, stride = plane * 2;
+	const auto width = std::min(source.backing.extent.width, frame.image.extent.width);
+	const auto height = std::min(source.backing.extent.height, frame.image.extent.height);
+	if (width < side || height < side) return;
+	static std::unique_ptr<Buffer> readback;
+	if (!readback) {
+		readback = std::make_unique<Buffer>(renderer.GetGraphics(), renderer.GetCommandScheduler(),
+		                                    MemoryUsage::Download, 0, AllFlags, stride * slots);
+	}
+	const auto offset = (n / 120 % slots) * stride;
+	const auto x = (width - side) / 2, y = (height - side) / 2;
+	auto cmd = command_buffer.Handle();
+	source.Transit(vk::ImageLayout::eTransferSrcOptimal, vk::AccessFlagBits2::eTransferRead, {}, cmd);
+	frame.Transit(cmd, vk::ImageLayout::eTransferSrcOptimal, vk::AccessFlagBits2::eTransferRead);
+	vk::BufferImageCopy region {};
+	region.imageSubresource = {vk::ImageAspectFlagBits::eColor, 0, 0, 1};
+	region.imageOffset = {static_cast<int32_t>(x), static_cast<int32_t>(y), 0};
+	region.imageExtent = {side, side, 1};
+	region.bufferOffset = offset;
+	cmd.copyImageToBuffer(source.backing.image, vk::ImageLayout::eTransferSrcOptimal,
+	                      readback->Handle(), region);
+	region.bufferOffset = offset + plane;
+	cmd.copyImageToBuffer(frame.image.image, vk::ImageLayout::eTransferSrcOptimal,
+	                      readback->Handle(), region);
+	vk::BufferMemoryBarrier barrier {};
+	barrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
+	barrier.dstAccessMask = vk::AccessFlagBits::eHostRead;
+	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.buffer = readback->Handle();
+	barrier.offset = offset;
+	barrier.size = stride;
+	cmd.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eHost,
+	                    {}, {}, barrier, {});
+	const auto guest_frame = renderer.GetGpu().GetFrameNum();
+	renderer.GetCommandScheduler().DeferOperation([offset, n, guest_frame, address] {
+		readback->Invalidate(offset, stride);
+		const auto* bytes = reinterpret_cast<const uint8_t*>(readback->Mapped().data() + offset);
+		uint64_t sum_src[3] {}, sum_dst[3] {};
+		uint32_t different = 0;
+		for (uint32_t pixel = 0; pixel < side * side; ++pixel) {
+			const auto p = pixel * 4;
+			for (uint32_t c = 0; c < 3; ++c) {
+				sum_src[c] += bytes[p + c];
+				sum_dst[c] += bytes[plane + p + c];
+			}
+			if (std::memcmp(bytes + p, bytes + plane + p, 4) != 0) ++different;
+		}
+		if (auto* file = std::fopen("kyty-present-compare.txt", "a")) {
+			std::fprintf(file, "frame=%llu seq=%llu addr=0x%llx different=%u/256 "
+			                  "src_BGR=%llu,%llu,%llu dst_BGR=%llu,%llu,%llu\n",
+			             static_cast<unsigned long long>(guest_frame),
+			             static_cast<unsigned long long>(n),
+			             static_cast<unsigned long long>(address), different,
+			             static_cast<unsigned long long>(sum_src[0]),
+			             static_cast<unsigned long long>(sum_src[1]),
+			             static_cast<unsigned long long>(sum_src[2]),
+			             static_cast<unsigned long long>(sum_dst[0]),
+			             static_cast<unsigned long long>(sum_dst[1]),
+			             static_cast<unsigned long long>(sum_dst[2]));
+			std::fclose(file);
+		}
+	});
+}
+
 Presenter::Frame& Presenter::PrepareFrame(CommandBuffer& buffer, const ImageInfo& info, bool hdr,
                                           bool headset) {
 	KYTY_PROFILER_FUNCTION();
@@ -1485,6 +1561,7 @@ Presenter::Frame& Presenter::PrepareFrame(CommandBuffer& buffer, const ImageInfo
 		}
 	}
 	frame->CopyFrom(buffer, image);
+	ComparePresentationCopy(m_impl->renderer, buffer, image, *frame, info.data.address);
 	FrameDump(m_impl->renderer, buffer, *frame);
 	if (headset) {
 		// The frame holds the raw display-encoded pixels the headset needs.
