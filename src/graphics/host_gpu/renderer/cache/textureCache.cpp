@@ -4704,6 +4704,16 @@ ImageId TextureCache::ResolveDepthOverlap(const ImageInfo& requested, BindingTyp
 	    requested.pitch == cached.info.pitch &&
 	    (requested.resources == cached.info.resources || retain_cached_layout) &&
 	    !IsSupportedSampledDepthFormat(cached.info.pixel_format, requested.pixel_format);
+	// Upstream 1b0f689df8: a texture may sample more slices of a depth array
+	// than the draw previously rendered. Grow the native depth backing rather
+	// than reinterpreting its existing slices as a color image. Preserve the
+	// original depth format and HTile metadata across the replacement.
+	const bool grow_sampled_depth =
+	    binding == BindingType::Texture && cached.info.IsDepth() && !cached.info.HasStencil() &&
+	    !requested.IsVolume() && requested.samples == cached.info.samples &&
+	    IsSupportedSampledDepthFormat(cached.info.pixel_format, requested.pixel_format) &&
+	    (requested.resources.layers > cached.info.resources.layers ||
+	     requested.resources.levels > cached.info.resources.levels);
 	// KYTY_IMAGE_CONTAINS=1 (Erlou93/KytyPS5-Yotei): capacity = levels AND layers, not the
 	// lexicographic compare (which reused 7 levels x 9 layers for a 1 level x 12 layers request).
 	const bool too_small = ImageContainsEnabled() ? !cached.info.resources.Contains(requested.resources)
@@ -4767,6 +4777,11 @@ ImageId TextureCache::ResolveDepthOverlap(const ImageInfo& requested, BindingTyp
 		info.resources  = cached.info.resources;
 		info.mip_layout = cached.info.mip_layout;
 	}
+	if (grow_sampled_depth) {
+		info.pixel_format = cached.info.pixel_format;
+		info.guest_format = cached.info.guest_format;
+		info.metadata     = cached.info.metadata;
+	}
 	const bool keep_aliases = AliasAgeByFrames() && !(cached.info.resources < requested.resources);
 	if (keep_aliases) {
 		for (const auto other_id: FindImagesInRegion(requested.data.address, requested.data.size, false)) {
@@ -4792,6 +4807,11 @@ ImageId TextureCache::ResolveDepthOverlap(const ImageInfo& requested, BindingTyp
 	RefreshImage(cached_id);
 	info.htile_initial_clear  = false;
 	const auto replacement_id = InsertImage(info);
+	if (grow_sampled_depth) {
+		// CopyImage below only copies existing subresources. Populate the
+		// additional layers/levels from guest memory before that copy.
+		InitializeImage(replacement_id);
+	}
 	auto&      replacement    = m_slot_images[replacement_id];
 	replacement.usage         = cached.usage;
 	if (cached.binding.is_bound || cached.binding.is_target) {
@@ -4844,6 +4864,13 @@ ImageId TextureCache::ResolveDepthOverlap(const ImageInfo& requested, BindingTyp
 		LOGF_COLOR(Log::Color::BrightYellow,
 		           "TextureCache: unsupported unequal-sample depth overlap copy (%u -> %u)\n",
 		           cached.backing.samples, replacement.backing.samples);
+	}
+	if (grow_sampled_depth) {
+		// The HTile clear state still belongs to this depth surface after growth.
+		const auto metadata = m_surface_metas.find(info.metadata.range.address);
+		if (metadata != m_surface_metas.end() && metadata->second.owner == cached_id) {
+			metadata->second.owner = replacement_id;
+		}
 	}
 	// KYTY_STENCIL_DEPTH_ALIAS: single-sample depth/stencil pairs too.
 	const bool stencil_alias = StencilDepthAliasEnabled() && cached.backing.samples == 1 &&
