@@ -1454,10 +1454,9 @@ Presenter::Frame& Presenter::PrepareFrame(CommandBuffer& buffer, const ImageInfo
 	                 {image.backing.extent.width, image.backing.extent.height}, frame_format);
 	// KYTY_PRESENT_SOURCE_TRACE=1: identify the exact guest image copied into the
 	// presentation frame. Metadata only: no GPU readback or rendering changes.
-	static const bool trace_source = [] {
-		const char* value = std::getenv("KYTY_PRESENT_SOURCE_TRACE");
-		return value != nullptr && value[0] != '\0' && value[0] != '0';
-	}();
+	// Temporarily always enabled for Silent Hill diagnosis: launcher may not
+	// forward environment variables to the emulator process.
+	static constexpr bool trace_source = true;
 	if (trace_source) {
 		static std::atomic<uint64_t> seen {0};
 		const auto n = seen.fetch_add(1, std::memory_order_relaxed);
