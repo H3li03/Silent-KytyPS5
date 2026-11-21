@@ -219,7 +219,11 @@ struct CodegenOptions {
 	// declared (KYTY_SHADER_FLOAT_CONTROLS=0) all of them flushed. So "nvidia" stays off there.
 	bool f32_flush_host = false;
 	// KYTY_MAD_MODE=exact|position|fused, see MadMode.
-	MadMode mad_mode = MadMode::Position;
+	// Experimental accuracy baseline: guest MAD rounds the multiply before the add.
+	// Position mode only preserves that rounding on position-export dependencies;
+	// pixel/compute shader arithmetic may otherwise change lighting and post-processing.
+	// Prefer Exact on this experiment branch; KYTY_MAD_MODE=position restores the prior mode.
+	MadMode mad_mode = MadMode::Exact;
 	// KYTY_INTERP_MODES=0: interpolate every pixel input at the pixel center with the shader-wide
 	// perspective (NoPerspective on all inputs when LINEAR_CENTER is enabled) instead of per input
 	// from the I/J pair its V_INTERP_P2 reads use (centroid, sample, linear).
