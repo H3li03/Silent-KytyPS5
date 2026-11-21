@@ -10848,7 +10848,7 @@ bool PipelineCache::BuildGraphicsPipelineKey(const PipelineTargets& targets, con
 			const char* value = std::getenv("KYTY_FLOAT_RT_NO_BLEND");
 			const bool enabled = value != nullptr && std::strcmp(value, "1") == 0;
 			if (FILE* out = std::fopen("kyty-float-blend-diagnostic.txt", "w")) {
-				std::fprintf(out, "KYTY_FLOAT_RT_NO_BLEND raw=%s enabled=%d\\n",
+				std::fprintf(out, "KYTY_FLOAT_RT_NO_BLEND raw=%s enabled=%d\n",
 				             value != nullptr ? value : "<unset>", enabled ? 1 : 0);
 				std::fclose(out);
 			}
@@ -10874,7 +10874,7 @@ bool PipelineCache::BuildGraphicsPipelineKey(const PipelineTargets& targets, con
 			static std::mutex diagnostic_mutex;
 			std::lock_guard<std::mutex> lock(diagnostic_mutex);
 			if (FILE* out = std::fopen("kyty-float-blend-diagnostic.txt", "a")) {
-				std::fprintf(out, "float_rt=%llu blend_enabled=%llu suppressed=%llu slot=%u format=%d\\n",
+				std::fprintf(out, "float_rt=%llu blend_enabled=%llu suppressed=%llu slot=%u format=%d\n",
 				             static_cast<unsigned long long>(seen),
 				             static_cast<unsigned long long>(float_blend_seen.load(std::memory_order_relaxed)),
 				             static_cast<unsigned long long>(float_blend_suppressed.load(std::memory_order_relaxed)),
