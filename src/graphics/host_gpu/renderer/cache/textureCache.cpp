@@ -7393,12 +7393,11 @@ void TextureCache::RunNanScrub() {
 		return;
 	}
 	for (size_t tries = 0; tries < m_nan_candidates.size();) {
-		// m_nan_next is the next candidate to inspect (not the previous one).
-		// Incrementing before the lookup skips slot zero on the first pass and
-		// may skip candidates whenever the list is shortened.
+		// m_nan_next identifies the candidate to inspect, not the last one used.
 		m_nan_next %= m_nan_candidates.size();
-		auto& candidate = m_nan_candidates[m_nan_next];
-		m_nan_next = (m_nan_next + 1) % m_nan_candidates.size();
+		const size_t current = m_nan_next;
+		m_nan_next = (current + 1) % m_nan_candidates.size();
+		auto& candidate = m_nan_candidates[current];
 		Image* image    = nullptr;
 		for (const auto id: FindImagesInRegion(candidate.address, candidate.size, false)) {
 			auto* found = m_slot_images.try_get(id);
@@ -7410,13 +7409,13 @@ void TextureCache::RunNanScrub() {
 		}
 		if (image == nullptr) {
 			// Gone: forget it.
-			m_nan_candidates.erase(m_nan_candidates.begin() + static_cast<std::ptrdiff_t>(m_nan_next));
+			m_nan_candidates.erase(m_nan_candidates.begin() + static_cast<std::ptrdiff_t>(current));
 			if (m_nan_candidates.empty()) {
+				m_nan_next = 0;
 				return;
 			}
-			// The next element shifted into the removed slot; inspect it next.
-			m_nan_next = std::min(m_nan_next == 0 ? m_nan_candidates.size() - 1 : m_nan_next - 1,
-			                      m_nan_candidates.size() - 1);
+			// The successor shifts left unless we erased the last element.
+			m_nan_next = current % m_nan_candidates.size();
 			continue;
 		}
 		tries++;
