@@ -344,7 +344,7 @@ vk::ImageView Image::FindView(const ImageViewInfo& view_info) {
 		static std::atomic<uint32_t> rejected_usage {0};
 		if (rejected_usage.fetch_add(1, std::memory_order_relaxed) < 16) {
 			std::fprintf(stderr,
-			             "KYTY_STORAGE_VIEW_USAGE_REJECTED: image_format=%d view_format=%d backing_usage=0x%x\\n",
+			             "KYTY_STORAGE_VIEW_USAGE_REJECTED: image_format=%d view_format=%d backing_usage=0x%x\n",
 			             static_cast<int>(image.format), static_cast<int>(normalized.format),
 			             static_cast<unsigned>(static_cast<vk::ImageUsageFlags::MaskType>(image.usage)));
 		}
