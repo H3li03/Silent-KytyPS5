@@ -1121,6 +1121,26 @@ void Swapchain::RecordPresentCommands(CommandBuffer& command, Presenter::Frame* 
 		                      (filtered ? 16u : 0u);
 		const uint32_t bit = 1u << path;
 		if ((reported_paths.fetch_or(bit, std::memory_order_relaxed) & bit) == 0) {
+			// Write to stderr and a dedicated file too: LOGF may not reach the console.
+			// One line per unique path avoids per-frame I/O overhead.
+			const auto write_path = [&](std::FILE* stream) {
+				if (stream == nullptr) return;
+				std::fprintf(stream,
+				             "HDR path: source=%d source_hdr=%d swapchain_hdr=%d pq_to_sdr=%d "
+				             "filtered=%d source_format=%d swapchain_format=%d "
+				             "source_extent=%ux%u target_extent=%ux%u\\n",
+				             source != nullptr ? 1 : 0, source != nullptr && source->hdr ? 1 : 0,
+				             m_hdr_active ? 1 : 0, pq_to_sdr ? 1 : 0, filtered ? 1 : 0,
+				             source != nullptr ? static_cast<int>(source->image.format) : -1,
+				             static_cast<int>(m_format), source_extent.width, source_extent.height,
+				             m_extent.width, m_extent.height);
+				std::fflush(stream);
+			};
+			write_path(stderr);
+			if (auto* file = std::fopen("kyty-hdr-path-trace.txt", "a")) {
+				write_path(file);
+				std::fclose(file);
+			}
 			LOGF("HDR path: source=%d source_hdr=%d swapchain_hdr=%d pq_to_sdr=%d "
 			     "filtered=%d source_format=%d swapchain_format=%d source_extent=%ux%u "
 			     "target_extent=%ux%u\n",
