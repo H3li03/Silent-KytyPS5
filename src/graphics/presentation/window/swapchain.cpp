@@ -373,8 +373,22 @@ vk::SurfaceFormatKHR Swapchain::SelectFormat() {
 		           graphics.GetFormatProperties(candidate.format).optimalTilingFeatures &
 		           vk::FormatFeatureFlagBits::eBlitDst);
 	});
-	m_hdr_supported        = Config::HdrEnabled() && hdr_format != formats.end();
-	m_hdr_active           = m_hdr_requested && IsHdrSupported();
+	// KYTY_HDR_SAFE_SDR_SWAPCHAIN=1: keep the launcher's HDR setting but force an
+	// SDR presentation surface. This is an opt-in recovery path for white HDR10 output,
+	// not HDR tone mapping; it also prevents reporting HDR support to VideoOut.
+	static const bool safe_sdr_swapchain = [] {
+		const char* value = std::getenv("KYTY_HDR_SAFE_SDR_SWAPCHAIN");
+		return value != nullptr && std::strcmp(value, "1") == 0;
+	}();
+	m_hdr_supported = !safe_sdr_swapchain && Config::HdrEnabled() && hdr_format != formats.end();
+	m_hdr_active    = m_hdr_requested && IsHdrSupported();
+	if (safe_sdr_swapchain && Config::HdrEnabled()) {
+		static std::atomic_bool logged {false};
+		if (!logged.exchange(true)) {
+			LOGF("HDR safe SDR swapchain: forced SDR presentation while launcher HDR is enabled; "
+			     "HDR10 output disabled (KYTY_HDR_SAFE_SDR_SWAPCHAIN=1)\n");
+		}
+	}
 	if (m_hdr_active) {
 		return *hdr_format;
 	}
