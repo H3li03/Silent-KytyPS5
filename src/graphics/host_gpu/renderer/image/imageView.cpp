@@ -325,7 +325,8 @@ vk::ImageView Image::FindView(const ImageViewInfo& view_info) {
 	// VkImageViewCreateInfo-usage-02275 also requires STORAGE_IMAGE format
 	// features. Never create a D32S8 storage view; stencil writes must use the
 	// R8 shadow image, or the caller must supply a valid fallback descriptor.
-	if (is_storage && image.format == vk::Format::eD32SfloatS8Uint) {
+	if (is_storage && (image.format == vk::Format::eD32SfloatS8Uint ||
+	                   normalized.format == vk::Format::eD32SfloatS8Uint)) {
 		static std::atomic<uint32_t> rejected {0};
 		if (rejected.fetch_add(1, std::memory_order_relaxed) < 16) {
 			std::fprintf(stderr,
