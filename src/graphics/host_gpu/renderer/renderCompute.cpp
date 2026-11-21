@@ -2326,6 +2326,40 @@ void RenderExecutor::DispatchDirectOne(uint64_t submit_id, CommandBuffer& buffer
 	}
 	CpGaps::Phase(CpGaps::Cat::DispatchEmit);
 
+	// Fail closed before descriptor encoding and vkCmdDispatch: a storage image must
+	// have a live view backed by an image created for storage usage. D32S8 cannot
+	// be a storage image on the AMD device from the validation trace. Never let
+	// an incompatible guest image reach the Vulkan compute descriptor set.
+	for (size_t i = 0; i < program.info.images.size(); ++i) {
+		const auto& resource = program.info.images[i];
+		if (resource.resource_class != ShaderRecompiler::IR::ImageResourceClass::Storage) continue;
+		const bool missing_binding = i >= bindings.images.size();
+		const auto* image = missing_binding ? nullptr
+		                                    : m_context.GetTextureCache().TryGetImage(bindings.images[i].image_id);
+		const bool invalid = missing_binding || bindings.images[i].image_view == nullptr ||
+		                     image == nullptr || image->backing.image == nullptr ||
+		                     image->backing.format == vk::Format::eD32SfloatS8Uint ||
+		                     !(image->backing.usage & vk::ImageUsageFlagBits::eStorage);
+		if (!invalid) continue;
+		static std::atomic<uint32_t> rejected_storage_dispatches {0};
+		if (rejected_storage_dispatches.fetch_add(1, std::memory_order_relaxed) < 32) {
+			Log::WriteMeshDiagnostic(fmt::sprintf(
+			    "KYTY_COMPUTE_STORAGE_DISPATCH_REJECTED shader=0x%016" PRIx64
+			    " image=%zu missing=%u view=%u backing=%u format=%d usage=0x%x\\n",
+			    program.shader_hash, i, static_cast<unsigned>(missing_binding),
+			    static_cast<unsigned>(!missing_binding && bindings.images[i].image_view != nullptr),
+			    static_cast<unsigned>(image != nullptr && image->backing.image != nullptr),
+			    image != nullptr ? static_cast<int>(image->backing.format) : -1,
+			    image != nullptr ? static_cast<unsigned>(
+			        static_cast<vk::ImageUsageFlags::MaskType>(image->backing.usage)) : 0u));
+		}
+		// A missing compatible resource is not a valid dispatch. Do not encode
+		// descriptors or submit commands with undefined Vulkan behavior.
+		dispatch_prep.End();
+		ResetBindings();
+		return;
+	}
+
 	PreparedBindings* descriptor_stage = &bindings;
 	// Emission safe point (KYTY_CP_RECORDER, render.h): no native handle from the preparation above
 	// is alive. Binding commits and the barrier requests below record state commands only (image
