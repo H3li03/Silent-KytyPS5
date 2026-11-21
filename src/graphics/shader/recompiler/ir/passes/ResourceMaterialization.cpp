@@ -71,19 +71,11 @@ bool SpecializationFail(std::string_view message) {
 std::atomic<SrtMappedRange> g_unmapped_buffer_probe {nullptr};
 std::atomic<uint64_t>       g_unmapped_buffer_nulls {0};
 
-thread_local std::array<uint64_t, 16> t_mapped_blocks {}; // 64 KiB blocks seen mapped (+1)
-
+// A 64 KiB-block-only cache cannot answer whether a particular [base, base + size)
+// range is mapped: descriptors in the same block can have different extents, and
+// guest mappings may change between draws. Query the full requested range.
 bool BufferBaseMapped(SrtMappedRange probe, uint64_t base, uint64_t size) {
-	const auto block = (base >> 16u) + 1u;
-	auto&      slot  = t_mapped_blocks[block & (t_mapped_blocks.size() - 1u)];
-	if (slot == block) {
-		return true;
-	}
-	if (!probe(base, size)) {
-		return false;
-	}
-	slot = block; // only positive verdicts are cached: a stale one keeps the V# (old behaviour)
-	return true;
+	return probe(base, size);
 }
 
 // Whether the buffer descriptor must specialize (and bind) as null.
