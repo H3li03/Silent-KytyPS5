@@ -3669,6 +3669,34 @@ void RenderExecutor::DrawRunTargets(CommandBuffer& buffer, const DrawCallInfo& d
 			}
 		}
 	}
+	// Correlate a fragment MRT0 export with a missing resolved color attachment.
+	// This is diagnostic only: a shader export alone does not authorize binding a
+	// guest render target, especially for depth-only draws.
+	if (state.ps_active && (mrt_mask & 1u) != 0) {
+		bool resolved_mrt0 = false;
+		for (uint32_t i = 0; i < state.color_count; ++i) {
+			if (state.color_info[i].target_slot == 0) {
+				resolved_mrt0 = true;
+				break;
+			}
+		}
+		if (!resolved_mrt0) {
+			static std::atomic<uint32_t> missing_mrt0_logged {0};
+			if (missing_mrt0_logged.fetch_add(1, std::memory_order_relaxed) < 128) {
+				const auto& ctx = buffer.GetRegisters();
+				const auto& rt0 = ctx.GetRenderTarget(0);
+				Log::WriteColorPathProbe(fmt::format(
+				    "KYTY_3D_MRT0_RESOLVE_MISSING mrt_mask=0x{:x} color_count={} "
+				    "rt0_addr=0x{:x} rt0_format={} rt0_mask=0x{:x} "
+				    "target_mask=0x{:x} shader_mask=0x{:x} output_filter=0x{:x}\\n",
+				    mrt_mask, state.color_count, rt0.base.addr,
+				    static_cast<uint32_t>(rt0.info.format),
+				    render_target_mask_slot(ctx.GetRenderTargetMask(), 0),
+				    ctx.GetRenderTargetMask(), ctx.GetShaderRegisters().m_cbShaderMask,
+				    DrawColorOutputFilter(ctx)));
+			}
+		}
+	}
 	if (draw.IsIndexed()) {
 		LogDrawPhase(draw.Name(), "ResolveRenderDepthTarget");
 	}
