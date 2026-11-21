@@ -7367,6 +7367,11 @@ void TextureCache::NoteNanScrubCandidate(const Image& image) {
 	}
 	if (m_nan_candidates.size() >= 256) {
 		m_nan_candidates.erase(m_nan_candidates.begin());
+		// Erasing the first entry shifts every surviving candidate left.
+		// Keep the round-robin cursor on the same logical candidate.
+		if (m_nan_next != 0) {
+			--m_nan_next;
+		}
 	}
 	m_nan_candidates.push_back({address, image.info.data.size, UINT64_MAX, 0});
 }
