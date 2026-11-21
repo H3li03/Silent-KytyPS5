@@ -1442,7 +1442,8 @@ void ComparePresentationCopy(RenderContext& renderer, CommandBuffer& command_buf
 	    frame.image.format != vk::Format::eB8G8R8A8Unorm) return;
 	static std::atomic<uint64_t> calls {0};
 	const auto n = calls.fetch_add(1, std::memory_order_relaxed);
-	if (n % 120 != 0) return;
+	// Odd sampling interval alternates between the game's two video-out buffers.
+	if (n % 119 != 0) return;
 	constexpr uint32_t side = 16, slots = 16;
 	constexpr uint64_t plane = side * side * 4, stride = plane * 2;
 	const auto width = std::min(source.backing.extent.width, frame.image.extent.width);
@@ -1453,7 +1454,7 @@ void ComparePresentationCopy(RenderContext& renderer, CommandBuffer& command_buf
 		readback = std::make_unique<Buffer>(renderer.GetGraphics(), renderer.GetCommandScheduler(),
 		                                    MemoryUsage::Download, 0, AllFlags, stride * slots);
 	}
-	const auto offset = (n / 120 % slots) * stride;
+	const auto offset = (n / 119 % slots) * stride;
 	const auto x = (width - side) / 2, y = (height - side) / 2;
 	auto cmd = command_buffer.Handle();
 	source.Transit(vk::ImageLayout::eTransferSrcOptimal, vk::AccessFlagBits2::eTransferRead, {}, cmd);
