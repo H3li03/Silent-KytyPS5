@@ -7356,8 +7356,13 @@ void TextureCache::NoteNanScrubCandidate(const Image& image) {
 		return;
 	}
 	const auto address = image.info.data.address;
+	const auto size = image.info.data.size;
+	// Different image footprints may reuse the same guest base address.
+	// The candidate identity must match the full guest range used by RunNanScrub.
 	if (std::ranges::any_of(m_nan_candidates,
-	                        [address](const NanScrubCandidate& c) { return c.address == address; })) {
+	                        [address, size](const NanScrubCandidate& c) {
+		                        return c.address == address && c.size == size;
+	                        })) {
 		return;
 	}
 	if (m_nan_candidates.size() >= 256) {
