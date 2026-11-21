@@ -505,7 +505,21 @@ bool Before(RenderContext& context) {
 		return false;
 	}
 	const auto key = PassCensus::CurrentKey();
-	if (frame == s.seg_frame && key == s.seg_key) return false;
+	// The launcher may execute command processing on a different thread, leaving the
+	// renderer's thread-local marker key at "-". In that case, split the capture into
+	// bounded operation-order windows rather than merging the entire frame into seg=0.
+	// A window contains up to 256 successful draws/dispatches, and at most 16 windows
+	// are read back per frame. This is diagnostic only; it does not change GPU work.
+	uint32_t operations = 0;
+	if (key == "-" && frame == s.seg_frame && s.seg_index < 15) {
+		for (const auto& [shader, count]: s.seg_ops) {
+			(void)shader;
+			operations += count;
+			if (operations >= 256) break;
+		}
+	}
+	const bool window_full = operations >= 256;
+	if (frame == s.seg_frame && key == s.seg_key && !window_full) return false;
 	if (!s.seg_outputs.empty()) return true;
 	Track(context);
 	return false;
