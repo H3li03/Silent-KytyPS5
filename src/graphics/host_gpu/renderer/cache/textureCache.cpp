@@ -7389,7 +7389,7 @@ void TextureCache::RunNanScrub() {
 		for (const auto id: FindImagesInRegion(candidate.address, candidate.size, false)) {
 			auto* found = m_slot_images.try_get(id);
 			if (found != nullptr && found->registered && found->info.data.address == candidate.address &&
-			    NanScrubBytes(*found) != 0) {
+			    found->info.data.size == candidate.size && NanScrubBytes(*found) != 0) {
 				image = found;
 				break;
 			}
