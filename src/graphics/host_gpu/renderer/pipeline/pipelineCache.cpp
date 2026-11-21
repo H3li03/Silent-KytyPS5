@@ -10852,7 +10852,8 @@ bool PipelineCache::BuildGraphicsPipelineKey(const PipelineTargets& targets, con
 			               : value != nullptr && std::strcmp(value, "971") == 0 ? 971
 			               : value != nullptr && std::strcmp(value, "972") == 0 ? 972
 			               : value != nullptr && std::strcmp(value, "9720") == 0 ? 9720
-			               : value != nullptr && std::strcmp(value, "9721") == 0 ? 9721 : 0;
+			               : value != nullptr && std::strcmp(value, "9721") == 0 ? 9721
+			               : value != nullptr && std::strcmp(value, "973") == 0 ? 973 : 0;
 			if (FILE* out = std::fopen("kyty-float-blend-diagnostic.txt", "w")) {
 				std::fprintf(out, "KYTY_FLOAT_RT_NO_BLEND raw=%s enabled=%d mode=%d\n",
 				             value != nullptr ? value : "<unset>", mode != 0 ? 1 : 0, mode);
@@ -10873,6 +10874,26 @@ bool PipelineCache::BuildGraphicsPipelineKey(const PipelineTargets& targets, con
 		                                  (float_blend_mode == 9720 && slot == 0 || float_blend_mode == 9721 && slot == 1) &&
 		                                      color.format == vk::Format::eR16G16B16A16Sfloat &&
 		                                      bc.color_srcblend == 1 && bc.color_destblend == 1 && bc.color_comb_fcn == 0;
+		// Experimental corrective blend: preserve the draw and blending, but replace
+		// additive One/One with One/OneMinusSrcAlpha on FP16 color targets.
+		// Opt-in only: this changes the blend equation and is not a proven PS5 mapping fix.
+		if (float_blend_mode == 973 && color.format == vk::Format::eR16G16B16A16Sfloat &&
+		    static_params.blend_enable[slot] && bc.color_srcblend == 1 &&
+		    bc.color_destblend == 1 && bc.color_comb_fcn == 0) {
+			static_params.color_destblend[slot] =
+			    static_cast<uint8_t>(Prospero::BlendFactor::kOneMinusSrcAlpha);
+			static std::atomic_uint64_t adjusted {0};
+			const auto count = adjusted.fetch_add(1, std::memory_order_relaxed) + 1;
+			if (count == 1 || (count & (count - 1)) == 0) {
+				static std::mutex adjusted_mutex;
+				std::lock_guard<std::mutex> lock(adjusted_mutex);
+				if (FILE* out = std::fopen("kyty-float-blend-diagnostic.txt", "a")) {
+					std::fprintf(out, "mode973_adjusted=%llu slot=%u format=%d\\n",
+					             static_cast<unsigned long long>(count), slot, static_cast<int>(color.format));
+					std::fclose(out);
+				}
+			}
+		}
 		static std::atomic_uint64_t float_rt_seen {0};
 		static std::atomic_uint64_t float_blend_seen {0};
 		static std::atomic_uint64_t float_blend_suppressed {0};
