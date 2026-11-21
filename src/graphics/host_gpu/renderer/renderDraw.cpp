@@ -3627,6 +3627,34 @@ void RenderExecutor::DrawRunTargets(CommandBuffer& buffer, const DrawCallInfo& d
 	if (SkipInactivePixelShadersEnabled()) {
 		mrt_mask &= DrawColorOutputFilter(buffer.GetRegisters());
 	}
+	// Audit MRT0 before split/filter and resolution: a fragment output can be
+	// declared while the guest has disabled its target, which is not by itself
+	// evidence that the emulator should create a color attachment.
+	if (state.ps_active) {
+		bool ps_exports_mrt0 = false;
+		for (const auto& output: state.ps_input_info.stage.program->info.outputs) {
+			if (output.kind == ShaderRecompiler::IR::StageOutputKind::Mrt && output.location == 0) {
+				ps_exports_mrt0 = true;
+				break;
+			}
+		}
+		if (ps_exports_mrt0 && (mrt_mask & 1u) == 0) {
+			static std::atomic<uint32_t> masked_mrt0_logged {0};
+			if (masked_mrt0_logged.fetch_add(1, std::memory_order_relaxed) < 128) {
+				const auto& regs = buffer.GetRegisters();
+				const auto& rt0 = regs.GetRenderTarget(0);
+				Log::WriteColorPathProbe(fmt::format(
+				    "KYTY_3D_MRT0_MASKED rt0_addr=0x{:x} rt0_format={} "
+				    "target_mask=0x{:x} slot0_mask=0x{:x} shader_mask=0x{:x} "
+				    "output_filter=0x{:x} skip_inactive={}\\n",
+				    rt0.base.addr, static_cast<uint32_t>(rt0.info.format),
+				    regs.GetRenderTargetMask(),
+				    render_target_mask_slot(regs.GetRenderTargetMask(), 0),
+				    regs.GetShaderRegisters().m_cbShaderMask, DrawColorOutputFilter(regs),
+				    static_cast<unsigned>(SkipInactivePixelShadersEnabled())));
+			}
+		}
+	}
 	// KYTY_OBJPRIM_ID: the slot of the hardware ObjPrimID write (not a pixel-shader export).
 	if (state.ps_active && state.ps_input_info.HasObjprimOutput()) {
 		mrt_mask |= 1u << state.ps_input_info.objprim_slot;
