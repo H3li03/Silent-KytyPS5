@@ -1442,16 +1442,19 @@ static void ShaderGetStaticInputInfoPS(
 	if ((active_inputs & 0x00000001u) != 0) {
 		ps_info.ps_perspective_sample_vgpr = 0u;
 	}
-	const uint32_t linear_base = 2u * std::popcount(active_inputs & 0x7u) +
-	                             ((active_inputs & 0x00000008u) != 0 ? 3u : 0u);
+	// SPI_PS_INPUT_ADDR reserves VGPR slots even when SPI_PS_INPUT_ENA does not
+	// enable the corresponding barycentric input. Use ADDR for the layout;
+	// ENA only decides whether an input is populated by hardware.
+	const uint32_t linear_base = 2u * std::popcount(layout_inputs & 0x7u) +
+	                             ((layout_inputs & 0x00000008u) != 0 ? 3u : 0u);
 	if ((active_inputs & 0x00000010u) != 0) {
 		ps_info.ps_linear_sample_vgpr = linear_base;
 	}
 	if ((active_inputs & 0x00000020u) != 0) {
-		ps_info.ps_linear_center_vgpr = linear_base + 2u * std::popcount(active_inputs & 0x10u);
+		ps_info.ps_linear_center_vgpr = linear_base + 2u * std::popcount(layout_inputs & 0x10u);
 	}
 	if ((active_inputs & 0x00000040u) != 0) {
-		ps_info.ps_linear_centroid_vgpr = linear_base + 2u * std::popcount(active_inputs & 0x30u);
+		ps_info.ps_linear_centroid_vgpr = linear_base + 2u * std::popcount(layout_inputs & 0x30u);
 	}
 	for (uint32_t i = 0; i < data.num_input_semantics && i < ps_info.input_num && i < 32u; i++) {
 		const auto& semantic = data.input_semantics[i];
