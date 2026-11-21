@@ -11558,6 +11558,13 @@ PipelineCache::Pipeline* PipelineCache::GetGraphicsPipelineImpl(
 				    info.pStages != nullptr && info.stageCount != 0 &&
 				            info.pStages[0].stage == vk::ShaderStageFlagBits::eMeshEXT ? 1u : 0u));
 			}
+			// Keep all shader modules alive across the synchronous Vulkan call as well.
+			// A module retired by another thread must never reach vkCreateGraphicsPipelines.
+			auto module_pins = ShaderModulePins::Capture(m_graphics.device, info.pStages, info.stageCount);
+			if (module_pins == nullptr) {
+				PipelineCacheLog("AMD synchronous graphics: rejected unpinnable shader module");
+				return vk::Result::eErrorInitializationFailed;
+			}
 			const auto result = PipelineFeedback::CreateGraphics(
 			    m_graphics.device, m_driver_cache, info, pipeline, PipelineFeedback::Path::Sync);
 			return result;
